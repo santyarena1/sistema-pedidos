@@ -1,24 +1,17 @@
 import os
-import urllib.parse
+import psycopg2
+import urllib.parse as urlparse
 
-# Si existe DATABASE_URL (entorno de producción como Render), usamos eso
-if "DATABASE_URL" in os.environ:
-    urllib.parse.uses_netloc.append("postgres")
-    url = urllib.parse.urlparse(os.environ["DATABASE_URL"])
+# Leer DATABASE_URL desde las variables de entorno
+url = urlparse.urlparse(os.environ['DATABASE_URL'])
 
-    DB_CONFIG = {
-        "dbname": url.path[1:],
-        "user": url.username,
-        "password": url.password,
-        "host": url.hostname,
-        "port": url.port
-    }
-else:
-    # Local (tu PC)
-    DB_CONFIG = {
-        "dbname": "preciosdb",
-        "user": "postgres",
-        "password": "admin123",
-        "host": "localhost",
-        "port": "5432"
-    }
+DB_CONFIG = {
+    'dbname': url.path[1:],
+    'user': url.username,
+    'password': url.password,
+    'host': url.hostname,
+    'port': url.port
+}
+
+# Conexión directa
+conn = psycopg2.connect(**DB_CONFIG)
