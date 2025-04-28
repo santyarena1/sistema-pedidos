@@ -1,0 +1,81 @@
+/* Estilos generales */
+body {
+  background: #fdf5f5;
+  font-family: 'Segoe UI', sans-serif;
+  margin: 0;
+  padding: 0;
+}
+
+.box {
+  background: white;
+  border-radius: 10px;
+  padding: 2rem;
+  box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+  margin-bottom: 2rem;
+}
+
+h1 {
+  font-size: 2rem;
+  color: #c0392b;
+  margin-bottom: 1rem;
+}
+
+th {
+  background-color: #f8d7da;
+}
+
+.btn-red {
+  background-color: #c0392b;
+  color: white;
+}
+
+.btn-red:hover {
+  background-color: #a93226;
+}
+
+.detalle {
+  display: none;
+}
+
+.ver-detalle {
+  cursor: pointer;
+}
+
+/* Sidebar */
+#sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  width: 240px;
+  background-color: #1c1c1c;
+  color: white;
+  padding: 2rem 1rem;
+  z-index: 1000;
+}
+
+#main-content {
+  margin-left: 240px;
+  padding: 2rem;
+}
+
+.sidebar-title {
+  font-size: 1.4rem;
+  margin-bottom: 2rem;
+}
+
+.nav-link {
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.nav-link:hover {
+  color: #ffc107 !important;
+}
+
+/* Tabla */
+.table tbody tr:hover {
+  background-color: #f9e6e6;
+}

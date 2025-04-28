@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Constancia de Entrega</title>
+  <style>
+    @page { margin: 1cm; }
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      padding: 0.5rem 1.2rem;
+      color: #333;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 0.5rem;
+    }
+    .logo-info {
+      width: 60%;
+    }
+    .logo-info img { width: 180px; }
+    .logo-info p {
+      font-size: 0.7rem;
+      margin: 0.2rem 0;
+    }
+    .presupuesto-info {
+      width: 40%;
+      text-align: right;
+    }
+    .presupuesto-info h2 {
+      color: #c0392b;
+      font-size: 1.3rem;
+      margin: 0;
+    }
+    .presupuesto-info p {
+      font-size: 0.8rem;
+      margin: 0.3rem 0;
+    }
+    .datos {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.7rem;
+      border-top: 1px solid #aaa;
+      border-bottom: 1px solid #aaa;
+      padding: 0.4rem 0;
+      margin-top: 0.5rem;
+    }
+    .datos div { width: 48%; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+      font-size: 0.75rem;
+    }
+    th, td {
+      border: 1px solid #aaa;
+      padding: 4px;
+      text-align: center;
+    }
+    th {
+      background-color: #f8d7da;
+      color: #800000;
+    }
+    .firma {
+      margin-top: 3rem;
+      font-size: 0.8rem;
+    }
+    .firma p {
+      margin: 1.2rem 0;
+    }
+    .footer {
+      font-size: 0.65rem;
+      color: #888;
+      text-align: center;
+      margin-top: 3rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="header">
+      <div class="logo-info">
+        <img src="static/logo.png" alt="The Gamer Shop">
+        <p><strong>Alejandro Arena</strong></p>
+        <p>Lisandro de la Torre 373 - 1408 - CAPITAL FEDERAL</p>
+        <p>Tel: 11 48704101</p>
+        <p>info@thegamershop.com</p>
+        <p>https://www.thegamershop.com.ar</p>
+      </div>
+      <div class="presupuesto-info">
+        <h2>CONSTANCIA DE ENTREGA {{ numero }}</h2>
+        <p><strong>Fecha de Emisión:</strong> {{ fecha_emision }}</p>
+      </div>
+    </div>
+
+    <div class="datos">
+      <div>
+        <p><strong>Cliente:</strong> {{ cliente }}</p>
+        <p><strong>DNI / CUIT / CUIL:</strong> {{ dni }}</p>
+        <p><strong>Mail:</strong> {{ email }}</p>
+        <p><strong>Teléfono:</strong> {{ telefono }}</p>
+      </div>
+      <div>
+        <p><strong>Dirección:</strong> {{ direccion }}</p>
+        <p><strong>Tipo de Factura:</strong> {{ tipo_factura }}</p>
+        <p><strong>Forma de Envio:</strong> {{ forma_envio }}</p>
+      </div>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>SKU</th>
+          <th>Cantidad</th>
+          <th>Producto</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in productos %}
+        <tr>
+          <td>{{ item.sku or '-' }}</td>
+          <td>{{ item.cantidad }}</td>
+          <td>{{ item.producto }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div class="firma">
+      <p>FIRMA: __________________________________________</p>
+      <p>ACLARACIÓN: _____________________________________</p>
+      <p>DNI: ____________________________________________</p>
+    </div>
+
+    <div class="footer">
+      Constancia de entrega generada por TheGamerShop - {{ fecha_emision }}<br>
+      Esta constancia no constituye factura ni comprobante fiscal.
+    </div>
+  </div>
+</body>
+</html>

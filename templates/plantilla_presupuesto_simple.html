@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8">
+    <title>Presupuesto</title>
+    <style>
+      @page {
+        margin: 1cm; /* Margen visual agradable para PDF */
+      }
+      body {
+        font-family: 'Segoe UI', sans-serif;
+        margin: 0;
+        padding: 0.5rem 1.2rem;
+        color: #333;
+      }
+  
+      .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 0.5rem;
+      }
+  
+      .logo-info {
+        width: 60%;
+      }
+  
+      .logo-info img {
+        width: 180px;
+      }
+  
+      .logo-info p {
+        font-size: 0.7rem;
+        margin: 0.2rem 0;
+      }
+  
+      .presupuesto-info {
+        width: 40%;
+        text-align: right;
+      }
+  
+      .presupuesto-info h2 {
+        color: #c0392b;
+        font-size: 1.3rem;
+        margin: 0;
+      }
+  
+      .presupuesto-info p {
+        font-size: 0.8rem;
+        margin: 0.3rem 0;
+      }
+  
+      .datos {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.7rem;
+        border-top: 1px solid #aaa;
+        border-bottom: 1px solid #aaa;
+        padding: 0.4rem 0;
+        margin-top: 0.5rem;
+      }
+  
+      .datos div {
+        width: 48%;
+      }
+  
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 1rem 0;
+        font-size: 0.75rem;
+      }
+  
+      th, td {
+        border: 1px solid #aaa;
+        padding: 4px;
+        text-align: center;
+      }
+  
+      th {
+        background-color: #f8d7da;
+        color: #800000;
+      }
+  
+      .resumen {
+        display: flex;
+        justify-content: flex-end;
+        margin-top: 1.5rem;
+      }
+  
+      .resumen table {
+        width: 280px;
+        font-size: 0.8rem;
+        margin-left:59%;
+      }
+  
+      .footer {
+        font-size: 0.65rem;
+        color: #888;
+        text-align: center;
+        margin-top: 3rem;
+        position: relative;
+        bottom: 0;
+      }
+    </style>
+  </head>
+  
+  
+<body>
+  <div class="wrapper">
+    <div class="header">
+      <div class="logo-info">
+        <img src="static/logo.png" alt="The Gamer Shop">
+        <p><strong>Alejandro Arena</strong></p>
+        <p>Lisandro de la Torre 373 - 1408 - CAPITAL FEDERAL</p>
+        <p>Tel: 11 48704101</p>
+        <p>info@thegamershop.com</p>
+        <p>https://www.thegamershop.com.ar</p>
+      </div>
+      <div class="presupuesto-info">
+        <h2>PRESUPUESTO {{ '%08d' % id }}</h2>
+        <p><strong>Fecha de Emisión:</strong> {{ fecha_emision }}</p>
+        <p><strong>Fecha de Vto. del Presupuesto:</strong> {{ fecha_validez }}</p>
+      </div>
+    </div>
+
+    <div class="datos">
+      <div>
+        <p><strong>Cliente:</strong> {{ cliente }}</p>
+        <p><strong>Nombre:</strong> -</p>
+
+      </div>
+      <div>
+        <p><strong>DNI:</strong> - </p>
+        <p><strong>Condición IVA:</strong> Consumidor Final</p>
+
+      </div>
+    </div>
+
+    <table>
+        <thead>
+          <tr>
+            <th style="width: 80%">Descripción</th>
+            <th style="width: 20%">Cantidad</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in items %}
+          <tr>
+            <td>{{ item.producto }}</td>
+            <td>{{ item.cantidad }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+    </table>
+    
+
+      
+
+    <div class="resumen">
+      <table>
+        <tr>
+          <td><strong>Subtotal</strong></td>
+          <td>${{ total_final | formato_arg }}</td>
+        </tr>
+        
+        <tr>
+          <td><strong>Total Presupuesto</strong></td>
+          <td><strong>${{ total_final | formato_arg }}</strong></td>
+        </tr>
+        <tr>
+            <td><strong>Crédito 1 pago</strong></td>
+            <td><strong> ${{ (total_final * 1.136) | formato_arg }}</strong></td>
+        </tr>
+      </table>
+    </div>
+
+    <div class="footer">
+      Control de proceso de sus ventas utilizando TheGamerShop © 2025<br>
+      <p>Algun/os de los productos pueden sufrir cambios de modelo de igual o mayor calidad.</p>
+    </div>
+  </div>
+</body>
+</html>

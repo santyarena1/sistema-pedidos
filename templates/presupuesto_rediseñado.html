@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Nuevo Presupuesto</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+  <style>
+    body { background: #fdf5f5; font-family: 'Segoe UI', sans-serif; }
+    .box { background: white; border-radius: 10px; padding: 2rem; box-shadow: 0 0 15px rgba(0,0,0,0.1); margin-bottom: 2rem; }
+    h1 { font-size: 2rem; color: #c0392b; margin-bottom: 1rem; }
+    th { background-color: #f8d7da; }
+    .btn-red { background-color: #c0392b; color: white; }
+    .btn-red:hover { background-color: #e74c3c; }
+    .detalle { display: none; }
+    .ver-detalle { cursor: pointer; }
+    body, html {
+    margin: 0;
+    padding: 0;
+    }
+    #sidebar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 100vh;
+      width: 240px;
+      background-color: #1c1c1c;
+      color: white;
+      padding: 2rem 1rem;
+      z-index: 100;
+    }
+    #main-content {
+      margin-left: 240px;
+      padding: 2rem;
+    }
+
+    .sidebar-title {
+      font-size: 1.4rem;
+      margin-bottom: 2rem;
+    }
+
+    .nav-link {
+      font-size: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .nav-link:hover {
+      color: #ffc107 !important;
+    }
+
+  </style>
+</head>
+<body class="p-4">
+  <div class="d-flex">
+    <div id="sidebar">
+      <div class="sidebar-title"><i class="fas fa-cubes"></i> TheGamerShop</div>
+      <ul class="nav flex-column">
+        <li class="nav-item mb-2"><a class="nav-link text-white" href="/presupuestos"><i class="fas fa-file-invoice-dollar"></i> Presupuestos</a></li>
+        <li class="nav-item mb-2"><a class="nav-link text-white" href="/buscar"><i class="fas fa-search"></i> Comparador</a></li>
+        <li class="nav-item mb-2"><a class="nav-link text-white" href="/carrito"><i class="fas fa-shopping-cart"></i> Carrito</a></li>
+        <li class="nav-item mb-2"><a class="nav-link text-white" href="pc_armadas"><i class="fas fa-desktop"></i> PC Armadas</a></li>
+        <li class="nav-item mb-2"><a class="nav-link text-white" href="/pedidos"><i class="fas fa-truck"></i> Pedidos</a></li>
+        <li class="nav-item mb-2"><a class="nav-link text-white" href="/pedidos/lista"><i class="fas fa-list"></i> Lista de Pedidos</a></li>
+      </ul>
+    </div>
+    <li class="nav-item mb-2">
+      <a class="nav-link text-white" href="pc_armadas.html">
+        <i class="fas fa-desktop"></i> PC Armadas
+      </a>
+    </li>
+    
+    <!-- Contenido principal -->
+    <div class="flex-grow-1 p-4" id="main-content">
+      <!-- Acá va el contenido actual de cada página -->
+    </div>
+  </div>
+  
+<div class="container">
+  <div class="box">
+    <h1>🧾 Nuevo Presupuesto</h1>
+    <div class="row g-3 mb-3">
+      <div class="col-md-4">
+        <label class="form-label">Cliente:</label>
+        <input id="cliente" class="form-control" value="Consumidor Final" />
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Emisión:</label>
+        <input type="date" id="fecha_emision" class="form-control" />
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Validez:</label>
+        <input type="date" id="fecha_validez" class="form-control" />
+      </div>
+    </div>
+
+    <div class="row mb-3">
+      <div class="col-md-6">
+        <label class="form-label">Coeficiente Precio de Venta:</label>
+        <input type="number" step="0.01" id="coef_venta" value="1.3" class="form-control" onchange="actualizarTotales()" />
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Descuento Global (%):</label>
+        <input type="number" id="descuentoGlobal" value="0" class="form-control" onchange="actualizarTotales()" />
+      </div>
+    </div>
+
+    <div class="input-group mb-3">
+      <input type="text" class="form-control" id="productoInput" placeholder="Buscar producto..." />
+      <button class="btn btn-red" onclick="buscarProducto()">Agregar</button>
+      <button class="btn btn-outline-secondary" onclick="abrirModalCrear()">➕ Crear Producto</button>
+
+    </div>
+
+    <div class="table-responsive">
+      <table class="table table-bordered align-middle text-center">
+        <thead class="table-danger">
+          <tr>
+            <th>Producto</th><th>Cant</th><th>Precio</th><th>Desc.</th><th>Costo</th><th>IVA</th><th>Precio Venta</th><th></th>
+          </tr>
+        </thead>
+        <tbody id="tabla-presupuesto"></tbody>
+      </table>
+    </div>
+
+    <div class="mt-3">
+      <p><b>Total Presupuesto:</b> <span id="totalFinal">0.00</span></p>
+      <button class="btn btn-success" onclick="guardarPresupuesto()">💾 Guardar Presupuesto</button>
+    </div>
+  </div>
+
+  <div class="box">
+    <h4>📋 Historial de Presupuestos</h4>
+    <div id="historial"></div>
+  </div>
+</div>
+
+<!-- Modal -->
+<div class="modal fade" id="modalBusqueda" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Seleccionar Producto</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="resultadosModal">
+        <p class="text-muted">Esperando búsqueda...</p>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- Modal Crear Producto -->
+<div class="modal fade" id="modalCrearProducto" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Crear Producto</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <label class="form-label">Nombre del Producto</label>
+        <input type="text" id="nuevoNombre" class="form-control mb-2" />
+        <label class="form-label">Precio</label>
+        <input type="number" id="nuevoPrecio" class="form-control mb-2" />
+        <label class="form-label">IVA</label>
+        <select id="nuevoIVA" class="form-select">
+          <option value="0">0%</option>
+          <option value="10.5">10.5%</option>
+          <option value="21" selected>21%</option>
+        </select>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button class="btn btn-red" onclick="crearProducto()">Agregar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const hoy = new Date().toISOString().split("T")[0];
+  document.getElementById("fecha_emision").value = hoy;
+  const en7dias = new Date();
+  en7dias.setDate(en7dias.getDate() + 7);
+  document.getElementById("fecha_validez").value = en7dias.toISOString().split("T")[0];
+  cargarHistorial();
+});
+
+function abrirModalCrear() {
+  const modal = new bootstrap.Modal(document.getElementById("modalCrearProducto"));
+  document.getElementById("nuevoNombre").value = "";
+  document.getElementById("nuevoPrecio").value = "";
+  document.getElementById("nuevoIVA").value = "21";
+  modal.show();
+}
+
+function crearProducto() {
+  const producto = document.getElementById("nuevoNombre").value.trim();
+  const precio = parseFloat(document.getElementById("nuevoPrecio").value) || 0;
+  const iva = parseFloat(document.getElementById("nuevoIVA").value) || 0;
+
+  if (!producto || precio <= 0) {
+    alert("Por favor completá todos los campos correctamente.");
+    return;
+  }
+
+  seleccionarProducto({ producto, precio, iva }); // 👈 importante que contenga iva
+  bootstrap.Modal.getInstance(document.getElementById("modalCrearProducto")).hide();
+}
+
+
+
+function buscarProducto() {
+  const query = document.getElementById("productoInput").value.trim();
+  if (!query) return;
+  const modal = new bootstrap.Modal(document.getElementById("modalBusqueda"));
+  modal.show();
+  document.getElementById("resultadosModal").innerHTML = "<p class='text-muted'>🔄 Cargando resultados...</p>";
+
+  fetch("http://localhost:5000/comparar?producto=" + encodeURIComponent(query))
+    .then(res => res.json())
+    .then(data => {
+      if (!Array.isArray(data) || data.length === 0) {
+        document.getElementById("resultadosModal").innerHTML = 
+          `<div>
+            <p>No se encontraron productos.</p>
+            <button class="btn btn-red" data-bs-dismiss="modal" onclick="agregarManual()">Cargar manualmente</button>
+          </div>`;
+        return;
+      }
+
+      data.sort((a, b) => {
+        const p1 = parseFloat((a.precio || "").replace("$", "").replace(/\./g, "").replace(",", ".")) || Infinity;
+        const p2 = parseFloat((b.precio || "").replace("$", "").replace(/\./g, "").replace(",", ".")) || Infinity;
+        return p1 - p2;
+      });
+
+      let html = "<table class='table table-striped'><thead><tr><th>Sitio</th><th>Producto</th><th>Precio</th><th></th></tr></thead><tbody>";
+      data.forEach(p => {
+        html += `<tr>
+          <td>${p.sitio}</td>
+          <td>${p.producto}</td>
+          <td>${p.precio}</td>
+          <td><button class='btn btn-sm btn-red' data-bs-dismiss='modal' onclick='seleccionarProducto(${JSON.stringify(p).replace(/'/g, "\\'")})'>Seleccionar</button></td>
+        </tr>`;
+      });
+      html += "</tbody></table>";
+      document.getElementById("resultadosModal").innerHTML = html;
+    });
+}
+
+function agregarManual() {
+  seleccionarProducto({ producto: prompt("Nombre del producto:"), precio: "0" });
+}
+
+function seleccionarProducto(p) {
+  const precio = parseFloat(typeof p.precio === "string" ? 
+    p.precio.replace("$", "").replace(/\./g, "").replace(",", ".") 
+    : p.precio) || 0;
+  const fila = document.createElement("tr");
+  fila.innerHTML = `
+    <td><input value="${p.producto}" class="form-control form-control-sm" /></td>
+    <td><input type="number" value="1" class="form-control form-control-sm" onchange="actualizarTotales()"></td>
+    <td><input type="number" value="${precio}" class="form-control form-control-sm" onchange="actualizarTotales()"></td>
+    <td><input type="number" value="0" class="form-control form-control-sm" onchange="actualizarTotales()"></td>
+    <td class="subtotal">$0.00</td>
+    <td>
+      <select class="form-select form-select-sm" onchange="actualizarTotales()">
+        <option value="0" ${p.iva == 0 ? "selected" : ""}>0%</option>
+        <option value="21" ${p.iva == 21 ? "selected" : ""}>21%</option>
+        <option value="10.5" ${p.iva == 10.5 ? "selected" : ""}>10.5%</option>
+      </select>
+    </td>
+    <td class="venta">$0.00</td>
+    <td><button class="btn btn-sm btn-danger" onclick="this.closest('tr').remove(); actualizarTotales()">🗑️</button></td>
+  `;
+
+  document.getElementById("tabla-presupuesto").appendChild(fila);
+  document.getElementById("productoInput").value = "";
+  actualizarTotales();
+}
+
+function actualizarTotales() {
+  let total = 0;
+  const coef = parseFloat(document.getElementById("coef_venta").value) || 1.3;
+
+  document.querySelectorAll("#tabla-presupuesto tr").forEach(row => {
+    const cantidad = parseFloat(row.cells[1].querySelector("input").value) || 0;
+    const precio = parseFloat(row.cells[2].querySelector("input").value) || 0;
+    const descuento = parseFloat(row.cells[3].querySelector("input").value) || 0;
+    const ivaSel = parseFloat(row.cells[5].querySelector("select").value) || 0;
+
+    const bruto = cantidad * precio;
+    const desc = bruto * (descuento / 100);
+    const sub = bruto - desc;
+    const precioVenta = precio * coef;
+
+    // NO HACER NINGÚN CÁLCULO CON EL IVA
+    // Solo dejar el valor informativo
+
+
+    row.querySelector(".subtotal").innerText = formatoArgentino(sub);
+    row.querySelector(".venta").innerText = formatoArgentino(precioVenta);
+
+    total += precioVenta * cantidad;
+  });
+
+  const descGlobal = parseFloat(document.getElementById("descuentoGlobal").value) || 0;
+  const totalFinal = total * (1 - descGlobal / 100);
+  document.getElementById("totalFinal").innerText = formatoArgentino(totalFinal);
+
+}
+
+function guardarPresupuesto() {
+  const items = [];
+  document.querySelectorAll("#tabla-presupuesto tr").forEach(row => {
+    const producto = row.cells[0].querySelector("input").value;
+    const cantidad = parseFloat(row.cells[1].querySelector("input").value) || 0;
+    const precio = parseFloat(row.cells[2].querySelector("input").value) || 0;
+    const descuento = parseFloat(row.cells[3].querySelector("input").value) || 0;
+    const iva = parseFloat(row.cells[5].querySelector("select").value) || 0;
+    const coef = parseFloat(document.getElementById("coef_venta").value) || 1.3;
+    const precio_venta = precio * coef;
+
+    items.push({ producto, cantidad, precio, descuento, iva, precio_venta });
+  });
+
+  const body = {
+    cliente: document.getElementById("cliente").value,
+    fecha_emision: document.getElementById("fecha_emision").value,
+    fecha_validez: document.getElementById("fecha_validez").value,
+    coef_venta: parseFloat(document.getElementById("coef_venta").value),
+    descuento: parseFloat(document.getElementById("descuentoGlobal").value),
+    total_final: parsearMonedaArg(document.getElementById("totalFinal").innerText),
+    items
+  };
+
+  fetch("http://localhost:5000/presupuestos", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  }).then(res => res.json()).then(data => {
+    if (data.error) return alert("❌ Error: " + data.error);
+    alert("✅ Presupuesto guardado");
+    document.getElementById("tabla-presupuesto").innerHTML = "";
+    cargarHistorial();
+  });
+}
+
+function cargarHistorial() {
+  fetch("http://localhost:5000/presupuestos/todos")
+    .then(res => res.json())
+    .then(data => {
+      const div = document.getElementById("historial");
+      if (!Array.isArray(data)) return div.innerHTML = "Error cargando historial.";
+      let html = "<table class='table'><thead><tr><th></th><th>ID</th><th>Cliente</th><th>Emisión</th><th>Total</th><th></th></tr></thead><tbody>";
+      data.forEach(p => {
+        html += 
+        `<div>
+          <tr>
+            <td><button class="btn btn-sm btn-outline-dark" onclick="verDetalles(${p.id}, this)">🔽</button></td>
+            <td>${p.id}</td>
+            <td>${p.cliente}</td>
+            <td>${p.fecha_emision}</td>
+            <td>${formatoArgentino(p.total_final)}</td>
+        
+            <td>
+              <button class='btn btn-sm btn-danger' onclick='eliminarPresupuesto(${p.id})'>🗑️</button>
+              <button class='btn btn-sm btn-secondary' onclick='editarPresupuesto(${p.id})'>✏️</button>
+              <button class='btn btn-sm btn-success' onclick='window.open("http://localhost:5000/presupuestos/pdf/${p.id}")'>📄</button>
+              <button class='btn btn-sm btn-warning' onclick='window.open("http://localhost:5000/presupuestos/pdf_simple/${p.id}")'>📃 Simple</button>
+              <button class='btn btn-sm btn-primary' onclick='agregarAPCArmadas(${p.id})'>📌 PC Armada</button>
+
+            </td>
+          </tr>
+          <tr class="detalle" id="detalle-${p.id}"><td colspan="6"><em>Cargando...</em></td></tr>
+        </div>`;
+      });
+      html += "</tbody></table>";
+      div.innerHTML = html;
+    });
+}
+
+function agregarAPCArmadas(id) {
+  fetch(`http://localhost:5000/presupuestos/${id}`)
+    .then(res => res.json())
+    .then(p => {
+      const etiquetas = prompt("📝 Ingresá etiquetas separadas por coma (ej: gamer, amd, oficina):");
+      if (etiquetas === null) return;
+
+      const body = {
+        presupuesto_id: id,
+        etiquetas: etiquetas.split(",").map(e => e.trim()).filter(Boolean)
+      };
+
+      fetch("http://localhost:5000/pc_armadas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      }).then(res => res.json()).then(data => {
+        if (data.error) return alert("❌ Error: " + data.error);
+        alert("✅ Agregado a PC Armadas");
+      });
+    });
+}
+
+function verDetalles(id, btn) {
+  const fila = document.getElementById("detalle-" + id);
+  if (fila.style.display === "table-row") {
+    fila.style.display = "none";
+    btn.textContent = "🔽";
+  } else {
+    fila.style.display = "table-row";
+    btn.textContent = "🔼";
+    fetch("http://localhost:5000/presupuestos/" + id)
+      .then(res => res.json())
+      .then(p => {
+        let html = "<ul>";
+        p.items.forEach(i => {
+          html += `<li>${i.cantidad} x ${i.producto} - ${formatoArgentino(i.precio_venta)}</li>`;
+        });
+        html += "</ul>";
+        fila.innerHTML = `<td colspan="6"><div>${html}</div></td>`;
+      });
+  }
+}
+
+function eliminarPresupuesto(id) {
+  if (!confirm("¿Eliminar presupuesto #" + id + "?")) return;
+  fetch("http://localhost:5000/presupuestos/" + id, { method: "DELETE" })
+    .then(() => cargarHistorial());
+}
+
+function editarPresupuesto(id) {
+  fetch(`http://localhost:5000/presupuestos/${id}`)
+      .then(res => res.json())
+    .then(data => {
+      document.getElementById("cliente").value = data.cliente;
+      document.getElementById("fecha_emision").value = data.fecha_emision;
+      document.getElementById("fecha_validez").value = data.fecha_validez;
+      document.getElementById("coef_venta").value = data.coef_venta;
+      document.getElementById("descuentoGlobal").value = data.descuento;
+
+      const tabla = document.getElementById("tabla-presupuesto");
+      tabla.innerHTML = "";
+      data.items.forEach(item => {
+        const fila = document.createElement("tr");
+        fila.innerHTML = 
+          `<div>
+            <td><input value="${item.producto}" class="form-control form-control-sm" /></td>
+            <td><input type="number" value="${item.cantidad}" class="form-control form-control-sm" onchange="actualizarTotales()" /></td>
+            <td><input type="number" value="${item.precio}" class="form-control form-control-sm" onchange="actualizarTotales()" /></td>
+            <td><input type="number" value="${item.descuento}" class="form-control form-control-sm" onchange="actualizarTotales()" /></td>
+            <td class="subtotal">$0.00</td>
+            <td>
+              <select class="form-select form-select-sm" onchange="actualizarTotales()">
+                <option value="0" ${item.iva == 0 ? "selected" : ""}>0%</option>
+                <option value="21" ${item.iva == 21 ? "selected" : ""}>21%</option>
+                <option value="10.5" ${item.iva == 10.5 ? "selected" : ""}>10.5%</option>
+              </select>
+            </td>
+            <td class="venta">$0.00</td>
+            <td><button class="btn btn-sm btn-danger" onclick="this.closest('tr').remove(); actualizarTotales()">🗑️</button></td>
+          </div>`;
+        tabla.appendChild(fila);
+      });
+
+      actualizarTotales();
+
+      // Guardar con PUT
+      document.querySelector("button.btn-success").onclick = function () {
+        const items = [];
+        document.querySelectorAll("#tabla-presupuesto tr").forEach(row => {
+          const producto = row.cells[0].querySelector("input").value;
+          const cantidad = parseFloat(row.cells[1].querySelector("input").value) || 0;
+          const precio = parseFloat(row.cells[2].querySelector("input").value) || 0;
+          const descuento = parseFloat(row.cells[3].querySelector("input").value) || 0;
+          const iva = parseFloat(row.cells[5].querySelector("select").value) || 0;
+          const coef = parseFloat(document.getElementById("coef_venta").value) || 1.3;
+          const precio_venta = precio * coef;
+
+          items.push({ producto, cantidad, precio, descuento, iva, precio_venta });
+        });
+
+        const body = {
+          cliente: document.getElementById("cliente").value,
+          fecha_emision: document.getElementById("fecha_emision").value,
+          fecha_validez: document.getElementById("fecha_validez").value,
+          coef_venta: parseFloat(document.getElementById("coef_venta").value),
+          descuento: parseFloat(document.getElementById("descuentoGlobal").value),
+          total_final: parsearMonedaArg(document.getElementById("totalFinal").innerText),
+          items
+        };
+
+        fetch(`http://localhost:5000/presupuestos/${id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        })
+        .then(res => res.json()).then(data => {
+          alert("✅ Presupuesto actualizado");
+          cargarHistorial();
+
+          // LIMPIAR FORMULARIO
+          document.getElementById("cliente").value = "Consumidor Final";
+          const hoy = new Date().toISOString().split("T")[0];
+          document.getElementById("fecha_emision").value = hoy;
+          const en7dias = new Date();
+          en7dias.setDate(en7dias.getDate() + 7);
+          document.getElementById("fecha_validez").value = en7dias.toISOString().split("T")[0];
+          document.getElementById("coef_venta").value = "1.3";
+          document.getElementById("descuentoGlobal").value = "0";
+          document.getElementById("tabla-presupuesto").innerHTML = "";
+          document.getElementById("totalFinal").innerText = "0.00";
+        });
+      };
+    });
+}
+function formatoArgentino(numero) {
+  return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(numero);
+}
+
+function parsearMonedaArg(str) {
+  return parseFloat(str.replace(/\./g, '').replace(',', '.').replace(/[^\d.-]/g, '')) || 0;
+}
+
+</script>
+</body>
+</html>

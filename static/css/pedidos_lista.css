@@ -1,0 +1,170 @@
+/* static/css/pedidos_lista.css */
+
+body {
+    background-color: #fef6f6;
+    font-family: 'Segoe UI', 'Roboto', sans-serif;
+    font-size: 15px;
+    color: #333;
+  }
+  
+  /* === Card principal === */
+  .pedido-card {
+    background-color: white;
+    border: 2px solid #bbb;
+    padding: 2rem;
+    margin-bottom: 2rem;
+    border-radius: 8px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+  }
+  
+  /* === Header === */
+  .pedido-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+  }
+  
+  .pedido-card h5 {
+    font-size: 1.4rem;
+    font-weight: 600;
+    color: #2c3e50;
+    margin: 0;
+  }
+  
+  .editar-btn {
+    background-color: #3498db;
+    border: none;
+    color: white;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  
+  /* === Datos del pedido === */
+  .pedido-datos {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+  }
+  
+  .pedido-datos > div {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .pedido-datos p {
+    margin: 0;
+    font-size: 0.95rem;
+  }
+  
+  .pedido-datos input,
+  .pedido-datos select {
+    width: 100%;
+    padding: 0.4rem;
+    margin-top: 0.2rem;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+  }
+  
+  /* === Estado del pedido === */
+  .estado-tag {
+    background-color: #d4edda;
+    color: #155724;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    font-weight: bold;
+  }
+  
+  /* === Tablas de productos y pagos === */
+  .productos, .pagos {
+    margin-top: 2rem;
+  }
+  
+  .productos table, .pagos table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 0.5rem;
+  }
+  
+  .productos th, .productos td,
+  .pagos th, .pagos td {
+    border: 1px solid #ccc;
+    padding: 0.5rem;
+    text-align: center;
+    font-size: 0.85rem;
+  }
+  
+  .productos th:nth-child(2) {
+    width: 30%;
+  }
+  
+  .productos th:nth-child(4),
+  .productos th:nth-child(5),
+  .productos th:nth-child(6),
+  .productos th:nth-child(7) {
+    width: 8%;
+  }
+  
+  /* === Totales === */
+  .totales {
+    display: flex;
+    justify-content: center;
+    gap: 2rem;
+    margin: 2rem 0;
+    font-weight: bold;
+    font-size: 1.2rem;
+    color: #b20000;
+  }
+  
+  /* === Acciones (botones inferiores) === */
+  .acciones {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    justify-content: center;
+    margin-top: 1.5rem;
+  }
+  
+  .acciones button, .acciones a, .acciones label {
+    padding: 0.6rem 1.2rem;
+    border-radius: 6px;
+    font-weight: bold;
+    border: none;
+    cursor: pointer;
+    font-size: 0.85rem;
+  }
+  
+  .acciones button {
+    background: #3498db;
+    color: white;
+  }
+  
+  .acciones a {
+    background: #27ae60;
+    color: white;
+    text-decoration: none;
+  }
+  
+  .acciones label {
+    background: #9b59b6;
+    color: white;
+  }
+  
+  input[type="file"] {
+    display: none;
+  }
+  
+  /* === Última modificación === */
+  .ultima-modif {
+    text-align: right;
+    font-style: italic;
+    margin-top: 1rem;
+    font-size: 0.9rem;
+    color: #888;
+  }
+  
