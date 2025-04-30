@@ -114,7 +114,7 @@
     tablaDiv.innerHTML = "<p class='text-muted'>🔄 Buscando en tiendas...</p>";
 
     try {
-      const res = await fetch(`http://localhost:5000/comparar?producto=${encodeURIComponent(prod)}`);
+      const res = await fetch(` /comparar?producto=${encodeURIComponent(prod)}`);
       const data = await res.json();
 
       // ✅ Asegurarse de tener precio_num numérico para todos
@@ -173,7 +173,7 @@
       link: item.link || "#"
     };
 
-    const res = await fetch("http://localhost:5000/carrito", {
+    const res = await fetch(" /carrito", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body)

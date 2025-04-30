@@ -9,6 +9,11 @@ from routes.pedidos_routes import pedidos_bp
 
 app = Flask(__name__, static_folder="static")
 
+@app.route("/")
+def home():
+    return render_template("presupuesto_rediseñado.html")
+
+
 @app.route("/presupuesto_rediseñado")
 def mostrar_presupuesto():
     return render_template("presupuesto_rediseñado.html")

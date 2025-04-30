@@ -115,7 +115,7 @@
     contenedor.innerHTML = "<div class='alert alert-info'>Cargando carrito...</div>";
 
     try {
-      const res = await fetch("http://localhost:5000/carrito");
+      const res = await fetch(" /carrito");
       const data = await res.json();
 
       if (data.error) {
@@ -168,7 +168,7 @@
   }
 
   async function eliminar(id) {
-    await fetch(`http://localhost:5000/carrito/${id}`, { method: "DELETE" });
+    await fetch(` /carrito/${id}`, { method: "DELETE" });
     cargarCarrito();
   }
 

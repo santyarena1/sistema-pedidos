@@ -36,7 +36,7 @@ function buscarProducto() {
   modal.show();
   document.getElementById("resultadosModal").innerHTML = "<p class='text-muted'>🔄 Cargando resultados...</p>";
 
-  fetch("http://localhost:5000/comparar?producto=" + encodeURIComponent(query))
+  fetch(" /comparar?producto=" + encodeURIComponent(query))
     .then(res => res.json())
     .then(data => {
       if (!Array.isArray(data) || data.length === 0) {
@@ -146,7 +146,7 @@ function guardarPresupuesto() {
     items
   };
 
-  fetch("http://localhost:5000/presupuestos", {
+  fetch(" /presupuestos", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body)
@@ -159,7 +159,7 @@ function guardarPresupuesto() {
 }
 
 function cargarHistorial() {
-  fetch("http://localhost:5000/presupuestos")
+  fetch(" /presupuestos")
     .then(res => res.json())
     .then(data => {
       const div = document.getElementById("historial");
@@ -176,8 +176,8 @@ function cargarHistorial() {
           <td>
             <button class='btn btn-sm btn-danger' onclick='eliminarPresupuesto(${p.id})'>🗑️</button>
             <button class='btn btn-sm btn-secondary' onclick='editarPresupuesto(${p.id})'>✏️</button>
-            <button class='btn btn-sm btn-success' onclick='window.open("http://localhost:5000/presupuestos/pdf/${p.id}")'>📄</button>
-            <button class='btn btn-sm btn-warning' onclick='window.open("http://localhost:5000/presupuestos/pdf_simple/${p.id}")'>📃 Simple</button>
+            <button class='btn btn-sm btn-success' onclick='window.open(" /presupuestos/pdf/${p.id}")'>📄</button>
+            <button class='btn btn-sm btn-warning' onclick='window.open(" /presupuestos/pdf_simple/${p.id}")'>📃 Simple</button>
           </td>
         </tr>
         <tr class="detalle" id="detalle-${p.id}"><td colspan="6"><em>Cargando...</em></td></tr>`;
@@ -195,7 +195,7 @@ function verDetalles(id, btn) {
   } else {
     fila.style.display = "table-row";
     btn.textContent = "🔼";
-    fetch("http://localhost:5000/presupuestos/" + id)
+    fetch(" /presupuestos/" + id)
       .then(res => res.json())
       .then(p => {
         let html = "<ul>";
@@ -210,7 +210,7 @@ function verDetalles(id, btn) {
 
 function eliminarPresupuesto(id) {
   if (!confirm("¿Eliminar presupuesto #" + id + "?")) return;
-  fetch("http://localhost:5000/presupuestos/" + id, { method: "DELETE" })
+  fetch(" /presupuestos/" + id, { method: "DELETE" })
     .then(() => cargarHistorial());
 }
 
