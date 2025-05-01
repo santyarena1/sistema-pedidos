@@ -1,0 +1,65 @@
+body {
+    background: #fdf5f5;
+    font-family: 'Segoe UI', sans-serif;
+  }
+  
+  #main-content {
+    margin-left: 240px;
+    padding: 2rem;
+  }
+  
+  .btn-red {
+    background-color: #c0392b;
+    color: white;
+  }
+  
+  .btn-red:hover {
+    background-color: #a93226;
+  }
+  
+  .card-search {
+    background: white;
+    border-radius: 10px;
+    padding: 2rem;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+  }
+  
+  h1 {
+    color: #b30000;
+    font-weight: bold;
+  }
+  
+  .table thead {
+    background-color: #b30000;
+    color: white;
+  }
+  
+  .table tbody tr:hover {
+    background-color: #f9e6e6;
+  }
+
+  #sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    width: 240px;
+    background-color: #1c1c1c;
+    color: white;
+    padding: 2rem 1rem;
+    z-index: 100;
+  }
+  
+  .nav-link {
+    color: white;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  
+  .nav-link:hover {
+    color: #ffc107 !important;
+  }
+  
+  

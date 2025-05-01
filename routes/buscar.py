@@ -16,15 +16,23 @@ def mostrar_comparador():
 @buscar_bp.route("/comparar", methods=["GET"])
 def comparar_productos():
     producto = request.args.get("producto")
+    tipo = request.args.get("tipo", "minorista")  # Por defecto "minorista"
+
     if not producto:
         return jsonify({"error": "Falta el parámetro 'producto'"}), 400
 
     try:
         resultados = []
-        for funcion in [buscar_compugamer, buscar_fullh4rd, buscar_maximus, buscar_newbytes]:
-            print(f"🔍 Ejecutando: {funcion.__name__} con producto '{producto}'")
-            resultados += asyncio.run(funcion(producto))
 
+        if tipo == "mayorista":
+            print(f"🔍 Buscando solo en mayoristas: NewBytes")
+            resultados += asyncio.run(buscar_newbytes(producto))
+        else:
+            print(f"🔍 Buscando solo en minoristas: CompraGamer, FullH4rd, Maximus")
+            for funcion in [buscar_compugamer, buscar_fullh4rd, buscar_maximus]:
+                resultados += asyncio.run(funcion(producto))
+
+        # Ordenar por precio
         resultados_ordenados = sorted(resultados, key=lambda x: x.get("precio_num", float('inf')))
         for r in resultados_ordenados:
             r.pop("precio_num", None)
@@ -34,3 +42,4 @@ def comparar_productos():
     except Exception as e:
         print("❌ Error en /comparar:", str(e))
         return jsonify({"error": str(e)}), 500
+
