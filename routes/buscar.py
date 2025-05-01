@@ -22,6 +22,7 @@ def comparar_productos():
     try:
         resultados = []
         for funcion in [buscar_compugamer, buscar_fullh4rd, buscar_maximus, buscar_newbytes]:
+            print(f"🔍 Ejecutando: {funcion.__name__} con producto '{producto}'")
             resultados += asyncio.run(funcion(producto))
 
         resultados_ordenados = sorted(resultados, key=lambda x: x.get("precio_num", float('inf')))
@@ -31,5 +32,5 @@ def comparar_productos():
         return jsonify(resultados_ordenados)
 
     except Exception as e:
-        print("Error en /comparar:", e)
-        return jsonify({"error": "Ocurrió un error al comparar precios"}), 500
+        print("❌ Error en /comparar:", str(e))
+        return jsonify({"error": str(e)}), 500
