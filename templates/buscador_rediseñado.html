@@ -117,6 +117,9 @@
       const res = await fetch(` /comparar?producto=${encodeURIComponent(prod)}`);
       const data = await res.json();
 
+      if (!Array.isArray(data)) {
+        throw new Error("La respuesta no es una lista");
+}
       // ✅ Asegurarse de tener precio_num numérico para todos
       data.forEach(item => {
         item.precio_num = parseFloat(String(item.precio || "").replace("$", "").replace(/\./g, "").replace(",", ".")) || 0;
