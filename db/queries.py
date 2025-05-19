@@ -12,15 +12,17 @@ def guardar_en_db(busqueda, sitio, producto, precio, link):
         print(f"❌ Error al guardar en DB ({sitio}): {e}")
         conn.rollback()
 
-def obtener_desde_db(producto, sitio):
+def obtener_desde_db(producto, sitio, limite=20):
     try:
         with conn.cursor() as cursor:
             cursor.execute("""
-                SELECT producto, precio, link FROM productos
-                WHERE LOWER(producto) LIKE %s AND sitio = %s
-                ORDER BY actualizado DESC
-                LIMIT 20
-            """, (f"%{producto.lower()}%", sitio))
+                SELECT producto, precio, link
+                FROM productos
+                WHERE sitio = %s
+                  AND unaccent(lower(producto)) ILIKE unaccent(lower(%s))
+                ORDER BY precio ASC
+                LIMIT %s
+            """, (sitio, f"%{producto}%", limite))
             rows = cursor.fetchall()
             return [
                 {

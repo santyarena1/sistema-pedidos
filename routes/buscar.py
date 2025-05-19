@@ -4,8 +4,22 @@ from services.compra_gamer import buscar_compugamer
 from services.fullh4rd import buscar_fullh4rd
 from services.maximus import buscar_maximus
 from services.newbytes import buscar_newbytes
+from services.buscar_invid import actualizar_lista_invid
+from services.buscar_invid import buscar_invid
+
+
+
+
 
 buscar_bp = Blueprint("buscar", __name__)
+
+@buscar_bp.route("/actualizar-invid", methods=["GET"])
+def actualizar_invid_manual():
+    try:
+        actualizar_lista_invid()
+        return jsonify({"mensaje": "Invid actualizado correctamente ✅"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 # Renderiza el HTML del comparador
 @buscar_bp.route("/buscar")
@@ -25,8 +39,10 @@ def comparar_productos():
         resultados = []
 
         if tipo == "mayorista":
-            print(f"🔍 Buscando solo en mayoristas: NewBytes")
+            print(f"🔍 Buscando solo en mayoristas: NewBytes, Invid")
             resultados += asyncio.run(buscar_newbytes(producto))
+            resultados += asyncio.run(buscar_invid(producto))
+            
         else:
             print(f"🔍 Buscando solo en minoristas: CompraGamer, FullH4rd, Maximus")
             for funcion in [buscar_compugamer, buscar_fullh4rd, buscar_maximus]:
@@ -43,3 +59,11 @@ def comparar_productos():
         print("❌ Error en /comparar:", str(e))
         return jsonify({"error": str(e)}), 500
 
+@buscar_bp.route("/actualizar-newbytes", methods=["GET"])
+def actualizar_newbytes_manual():
+    try:
+        from services.newbytes import actualizar_lista_newbytes
+        actualizar_lista_newbytes()
+        return jsonify({"mensaje": "Actualización manual completada ✅"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500

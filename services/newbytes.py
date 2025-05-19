@@ -4,14 +4,20 @@ from services.dolar import obtener_dolar_oficial
 import requests
 import pandas as pd
 from io import BytesIO
+from db.connection import conn
+
 
 async def buscar_newbytes(producto):
     cache = obtener_desde_db(producto, "NewBytes")
-    if cache:
-        return [{**fila, "precio": formatear_precio(fila["precio"])} for fila in cache]
+    return [
+        {**fila, "precio": formatear_precio(fila["precio"])}
+        for fila in cache
+    ] if cache else []
 
+
+def actualizar_lista_newbytes():
     try:
-        valor_dolar = await obtener_dolar_oficial()
+        valor_dolar = requests.get("https://api.bluelytics.com.ar/v2/latest").json()["blue"]["value_avg"]
         url = "https://api.nb.com.ar/v1/priceListExcel/1f31e11177035cdab4cad5e94e50ea"
         response = requests.get(url, timeout=10)
         response.raise_for_status()
@@ -20,30 +26,35 @@ async def buscar_newbytes(producto):
         df.columns = df.columns.str.strip()
 
         if "DETALLE" not in df.columns or "PRECIO FINAL" not in df.columns:
-            return []
+            print("❌ Columnas faltantes en el Excel de NewBytes")
+            return
 
-        producto_normalizado = producto.lower().replace(" ", "")
-        df["normalizado"] = df["DETALLE"].astype(str).str.lower().str.replace(" ", "")
-        coincidencias = df[df["normalizado"].str.contains(producto_normalizado)]
-        resultados = []
+        # 🔥 LIMPIAR ANTES DE CARGAR
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM productos WHERE sitio = %s", ("NewBytes",))
+            conn.commit()
+            print("🧹 Productos anteriores de NewBytes eliminados")
 
-        for _, fila in coincidencias.iterrows():
+        for _, fila in df.iterrows():
             try:
-                precio_usd = float(str(fila["PRECIO FINAL"]).replace(",", "."))
-                precio_ars = round(precio_usd * valor_dolar * 1.04)  # Aumento del 4%
-            except:
-                precio_ars = 0
+                detalle = str(fila["DETALLE"]).strip()
+                precio_str = str(fila["PRECIO FINAL"]).replace(",", ".").strip()
 
-            guardar_en_db(producto, "NewBytes", fila["DETALLE"], precio_ars, "https://newbytes.com.ar")
-            resultados.append({
-                "sitio": "NewBytes",
-                "producto": fila["DETALLE"],
-                "precio": formatear_precio(precio_ars),
-                "precio_num": precio_ars,
-                "link": "https://newbytes.com.ar"
-            })
+                if not detalle or detalle.upper() == "DETALLE" or "PRECIO FINAL" in detalle:
+                    continue
+                if not precio_str or precio_str.lower() == "nan":
+                    continue
 
-        return resultados
+                precio_usd = float(precio_str)
+                precio_ars = round(precio_usd * valor_dolar * 1.04)
+
+                guardar_en_db(detalle, "NewBytes", detalle, precio_ars, "https://newbytes.com.ar")
+            except Exception as e:
+                print(f"⚠️ Error en fila: {fila.get('DETALLE', 'SIN DETALLE')}, error: {e}")
+
+        print("✅ Lista de precios de NewBytes actualizada correctamente")
+
     except Exception as e:
-        print("Error en buscar_newbytes:", e)
-        return []
+        print("❌ Error al actualizar lista de NewBytes:", e)
+
+
