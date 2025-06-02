@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>PCs Predeterminadas</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+  <link rel="stylesheet" href="/static/css/presupuesto.css">
+</head>
+<body class="p-4 bg-light">
+
+  <div class="d-flex">
+    <!-- Sidebar -->
+    <div id="sidebar">
+      <div class="sidebar-title"><i class="fas fa-cubes"></i> TheGamerShop</div>
+      <ul class="nav flex-column">
+        <li class="nav-item mb-2"><a class="nav-link text-white" href="/presupuestos"><i class="fas fa-file-invoice-dollar"></i> Presupuestos</a></li>
+        <li class="nav-item mb-2"><a class="nav-link text-white" href="/buscar"><i class="fas fa-search"></i> Comparador</a></li>
+        <li class="nav-item mb-2"><a class="nav-link text-white" href="/carrito"><i class="fas fa-shopping-cart"></i> Carrito</a></li>
+        <li class="nav-item mb-2"><a class="nav-link text-white" href="pc_armadas"><i class="fas fa-desktop"></i> PC Armadas</a></li>
+        <li class="nav-item mb-2"><a class="nav-link text-white" href="/pedidos"><i class="fas fa-truck"></i> Pedidos</a></li>
+        <li class="nav-item mb-2"><a class="nav-link text-white" href="/pedidos/lista"><i class="fas fa-list"></i> Lista de Pedidos</a></li>
+        <li class="nav-item mb-2"><a class="nav-link text-white" href="/stock"><i class="fas fa-boxes"></i> Lista de Stock</a></li>
+        <li class="nav-item mb-2"><a class="nav-link text-white" href="/componentes-presupuesto"><i class="fas fa-cogs"></i> Componentes</a></li>
+        <li class="nav-item mb-2"><a class="nav-link text-white active" href="/pcs_predeterminadas"><i class="fas fa-desktop"></i> PCs Predeterminadas</a></li>
+      </ul>
+    </div>
+
+    <!-- Contenido principal -->
+    <div class="flex-grow-1 p-4" id="main-content">
+      <div class="container">
+        <div class="box">
+          <h1 class="mb-4"><i class="fas fa-desktop me-2"></i> PCs Predeterminadas</h1>
+
+            <!-- Buscador global -->
+            <div class="input-group mb-3">
+                <input id="buscadorGlobal" type="text" class="form-control" placeholder="Buscar por componente, etiqueta, programa o ID..." oninput="filtrarTarjetas()">
+                <button class="btn btn-red" onclick="nuevaPC()">➕ Agregar PC</button>
+            </div>
+            <!-- Filtros mejorados -->
+            <div class="d-flex flex-wrap gap-3 mb-3">
+                <div>
+                <label class="form-label">Filtrar por etiquetas:</label>
+                <div id="filtro-etiquetas" class="d-flex flex-wrap gap-2"></div>
+                <button class="btn btn-sm btn-outline-secondary mt-1" onclick="abrirModalEtiqueta()">➕ Nueva Etiqueta</button>
+                </div>
+                <div>
+                <label class="form-label">Filtrar por programas/juegos:</label>
+                <div id="filtro-programas" class="d-flex flex-wrap gap-2"></div>
+                <button class="btn btn-sm btn-outline-secondary mt-1" onclick="abrirModalPrograma()">➕ Nuevo Programa/Juego</button>
+                </div>
+            </div>
+  
+
+
+            <!-- Contenedor de tarjetas estilo pedido -->
+            <div id="contenedor-pcs" class="d-flex flex-column gap-4"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal crear etiqueta -->
+  <div class="modal fade" id="modalEtiqueta" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header"><h5 class="modal-title">Nueva Etiqueta</h5></div>
+        <div class="modal-body">
+          <input type="text" id="nuevaEtiqueta" class="form-control" placeholder="Ej: gamer, oficina, streaming...">
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button class="btn btn-red" onclick="crearEtiqueta()">Crear</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal crear programa/juego -->
+  <div class="modal fade" id="modalPrograma" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header"><h5 class="modal-title">Nuevo Programa o Juego</h5></div>
+        <div class="modal-body">
+          <input type="text" id="nuevoPrograma" class="form-control" placeholder="Ej: Fortnite, Photoshop, AutoCAD...">
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button class="btn btn-red" onclick="crearPrograma()">Crear</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="/static/js/pc_predeterminadas.js"></script>
+
+</body>
+</html>
