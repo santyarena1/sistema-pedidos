@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <title>{% block title %}TheGamerShop{% endblock %}</title>
+
+    <link href="{{ url_for('static', filename='vendor/fontawesome-free/css/all.min.css') }}" rel="stylesheet" type="text/css">
+    <link href="https://fonts.googleapis.com/css?family=Nunito:200,200i,300,300i,400,400i,600,600i,700,700i,800,800i,900,900i" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/sb-admin-2.min.css') }}" rel="stylesheet">
+</head>
+<body id="page-top">
+    <div id="wrapper">
+        <ul class="navbar-nav bg-gradient-primary sidebar sidebar-dark accordion" id="accordionSidebar">
+            <a class="sidebar-brand d-flex align-items-center justify-content-center" href="/">
+                <div class="sidebar-brand-icon"><i class="fas fa-gamepad"></i></div>
+                <div class="sidebar-brand-text mx-3">TheGamerShop</div>
+            </a>
+            <hr class="sidebar-divider my-0">
+            
+            <li class="nav-item {% if 'buscar' in request.path %}active{% endif %}">
+                <a class="nav-link" href="{{ url_for('buscar.mostrar_comparador') }}"><i class="fas fa-fw fa-search"></i><span>Comparador</span></a>
+            </li>
+            <li class="nav-item {% if 'presupuestos' in request.path %}active{% endif %}">
+                <a class="nav-link" href="{{ url_for('presupuestos.presupuestos') }}"><i class="fas fa-fw fa-file-invoice"></i><span>Presupuestos</span></a>
+            </li>
+            <li class="nav-item {% if 'carrito' in request.path %}active{% endif %}">
+                <a class="nav-link" href="{{ url_for('carrito.carrito') }}"><i class="fas fa-fw fa-shopping-cart"></i><span>Carrito</span></a>
+            </li>
+            <li class="nav-item {% if 'pc_armadas' in request.path %}active{% endif %}">
+                <a class="nav-link" href="{{ url_for('pc_armadas.pc_armadas') }}"><i class="fas fa-fw fa-desktop"></i><span>PC Armadas</span></a>
+            </li>
+             <li class="nav-item {% if 'pedidos' in request.path and 'lista' not in request.path %}active{% endif %}">
+                <a class="nav-link" href="{{ url_for('pedidos.formulario_pedidos') }}"><i class="fas fa-fw fa-truck"></i><span>Nuevo Pedido</span></a>
+            </li>
+            <li class="nav-item {% if 'pedidos/lista' in request.path %}active{% endif %}">
+                <a class="nav-link" href="{{ url_for('pedidos.lista_pedidos') }}"><i class="fas fa-fw fa-list"></i><span>Lista de Pedidos</span></a>
+            </li>
+            <li class="nav-item {% if 'stock' in request.path %}active{% endif %}">
+                <a class="nav-link" href="{{ url_for('stock.vista_stock') }}"><i class="fas fa-fw fa-boxes"></i><span>Stock</span></a>
+            </li>
+            <li class="nav-item {% if 'componentes-presupuesto' in request.path %}active{% endif %}">
+                <a class="nav-link" href="{{ url_for('componentes.vista_componentes') }}"><i class="fas fa-fw fa-cogs"></i><span>Componentes</span></a>
+            </li>
+            <li class="nav-item {% if 'pcs_predeterminadas' in request.path %}active{% endif %}">
+                <a class="nav-link" href="{{ url_for('pcs_predeterminadas.vista_pcs') }}"><i class="fas fa-fw fa-desktop"></i><span>PCs Predeterminadas</span></a>
+            </li>
+        </ul>
+
+        <div id="content-wrapper" class="d-flex flex-column">
+            <div id="content">
+                <nav class="navbar navbar-expand navbar-light bg-white topbar mb-4 static-top shadow"></nav>
+                <div class="container-fluid">
+                    {% block content %}{% endblock %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='vendor/jquery/jquery.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='vendor/bootstrap/js/bootstrap.bundle.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/sb-admin-2.min.js') }}"></script>
+    
+    {% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,63 +1,172 @@
-<!-- MODIFICADO: buscador_rediseñado.html -->
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <title>Comparador de Precios</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link href="/static/css/buscador.css" rel="stylesheet">
-  <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+    <meta charset="UTF-8" />
+    <title>Comparador de Precios Avanzado</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <link href="{{ url_for('static', filename='css/buscador.css') }}" rel="stylesheet">
 </head>
 <body>
 
-<!-- Sidebar -->
 <div id="sidebar">
-  <div class="sidebar-title"><i class="fas fa-cubes"></i> TheGamerShop</div>
-  <ul class="nav flex-column">
-    <li class="nav-item mb-2"><a class="nav-link text-white" href="/presupuestos"><i class="fas fa-file-invoice-dollar"></i> Presupuestos</a></li>
-    <li class="nav-item mb-2"><a class="nav-link text-white" href="/buscar"><i class="fas fa-search"></i> Comparador</a></li>
-    <li class="nav-item mb-2"><a class="nav-link text-white" href="/carrito"><i class="fas fa-shopping-cart"></i> Carrito</a></li>
-    <li class="nav-item mb-2"><a class="nav-link text-white" href="pc_armadas"><i class="fas fa-desktop"></i> PC Armadas</a></li>
-    <li class="nav-item mb-2"><a class="nav-link text-white" href="/pedidos"><i class="fas fa-truck"></i> Nuevo Pedido</a></li>
-    <li class="nav-item mb-2"><a class="nav-link text-white" href="/pedidos/lista"><i class="fas fa-list"></i> Lista de Pedidos</a></li>
-    <li class="nav-item mb-2"><a class="nav-link text-white" href="/stock"><i class="fas fa-boxes"></i> Lista de Stock</a></li>
-    <li class="nav-item mb-2"><a class="nav-link text-white" href="/componentes-presupuesto"><i class="fas fa-cogs"></i> Componentes</a></li>
-    <li class="nav-item mb-2"><a class="nav-link text-white active" href="/pcs_predeterminadas"><i class="fas fa-desktop"></i> PCs Predeterminadas</a></li>
-    
-  </ul>
+    <div class="sidebar-title">TheGamerShop</div>
+    <ul class="nav flex-column">
+        <li class="nav-item mb-2"><a class="nav-link" href="/presupuestos"><i class="fas fa-file-invoice-dollar"></i> Presupuestos</a></li>
+        <li class="nav-item mb-2"><a class="nav-link active" href="/buscar"><i class="fas fa-search"></i> Comparador</a></li>
+        <li class="nav-item mb-2"><a class="nav-link" href="/carrito"><i class="fas fa-shopping-cart"></i> Carrito</a></li>
+        <li class="nav-item mb-2"><a class="nav-link" href="/pc_armadas"><i class="fas fa-desktop"></i> PC Armadas</a></li>
+        <li class="nav-item mb-2"><a class="nav-link" href="/pedidos"><i class="fas fa-truck"></i> Nuevo Pedido</a></li>
+        <li class="nav-item mb-2"><a class="nav-link" href="/pedidos/lista"><i class="fas fa-list"></i> Lista de Pedidos</a></li>
+        <li class="nav-item mb-2"><a class="nav-link" href="/stock"><i class="fas fa-boxes"></i> Lista de Stock</a></li>
+        <li class="nav-item mb-2"><a class="nav-link" href="/componentes-presupuesto"><i class="fas fa-cogs"></i> Componentes</a></li>
+        <li class="nav-item mb-2"><a class="nav-link" href="/pcs_predeterminadas"><i class="fas fa-desktop"></i> PCs Predeterminadas</a></li>
+    </ul>
 </div>
 
-<!-- Contenido -->
 <div id="main-content">
-  <h1 class="text-center"><i class="fas fa-tags"></i> Comparador de Precios en Vivo</h1>
+    <h1 class="mb-4">Comparador de Precios</h1>
 
-  <div class="card-search my-4 mx-auto" style="max-width: 800px;">
-    <div class="d-flex mb-2">
-      <input type="text" id="producto" class="form-control me-2" placeholder="Ej: Ryzen 5600G">
-      <select id="tipoBusqueda" class="form-select me-2">
-        <option value="minorista">Minoristas</option>
-        <option value="mayorista">Mayoristas</option>
-      </select>
-      <button class="btn btn-red" onclick="buscar()">Buscar</button>
+    <div class="card-search my-4">
+        <div class="d-flex mb-2 gap-2">
+            <input type="text" id="producto" class="form-control" placeholder="Ej: Ryzen 5 5600G">
+            <select id="tipoBusqueda" class="form-select" style="width: 200px;">
+                <option value="minorista">Minoristas</option>
+                <option value="mayorista">Mayoristas</option>
+                <option value="masiva">Búsqueda Masiva (Todos)</option>
+            </select>
+            <button class="btn btn-red" onclick="buscar(true)">Buscar</button>
+            <button class="btn btn-success ms-2" data-bs-toggle="modal" data-bs-target="#modalConfiguracion">
+                <i class="fas fa-cog"></i> Configuración
+            </button>
+        </div>
+        <div class="card card-body mb-4">
+            <h5 class="mb-3">Calculadora de Precio de Venta</h5>
+            <div class="row g-3 align-items-center">
+                <div class="col-md-5">
+                    <div class="input-group">
+                        <span class="input-group-text">$</span>
+                        <input type="number" id="costo-producto" class="form-control" placeholder="Ingresar costo">
+                    </div>
+                </div>
+                <div class="col-md-5">
+                    <select id="categoria-producto" class="form-select">
+                        <option selected disabled>Seleccionar categoría...</option>
+                        </select>
+                </div>
+                <div class="col-md-2">
+                    <div class="input-group">
+                        <span class="input-group-text" style="font-weight: 600; color: var(--accent-red);">= $</span>
+                        <input type="text" id="precio-final" class="form-control" readonly style="font-weight: bold; background-color: #e9ecef;">
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="d-flex align-items-center mt-3">
+            <button class="btn btn-outline-dark me-2" onclick="window.location.href='/carrito'">Ver Carrito</button>
+            <button class="btn btn-outline-secondary" onclick="window.location.href='/presupuestos'">Crear Presupuesto</button>
+            <a class="ms-auto text-decoration-none" data-bs-toggle="collapse" href="#filtrosAvanzados" role="button">
+                Filtros Avanzados <i class="fas fa-chevron-down"></i>
+            </a>
+        </div>
     </div>
-    <div class="d-flex">
-      <button class="btn btn-outline-dark me-2" onclick="window.location.href='/carrito'">Ver Carrito</button>
-      <button class="btn btn-outline-secondary" onclick="window.location.href='/presupuestos'">Crear Presupuesto</button>
+
+    <div class="collapse" id="filtrosAvanzados">
+        <div class="card card-body mb-4">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-7">
+                    <h5>Filtrar por Tienda</h5>
+                    <div id="filtro-tiendas" class="d-flex flex-wrap"></div>
+                </div>
+                <div class="col-md-5">
+                    <h5>Filtrar por Precio</h5>
+                    <div class="input-group">
+                        <input type="number" id="precioMin" class="form-control" placeholder="Mínimo">
+                        <input type="number" id="precioMax" class="form-control" placeholder="Máximo">
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
-  </div>
 
-  <div class="d-flex justify-content-end mb-3">
-    <select id="ordenSelect" class="form-select w-auto">
-      <option value="precio_asc">Menor precio</option>
-      <option value="precio_desc">Mayor precio</option>
-      <option value="nombre_asc">A-Z</option>
-      <option value="nombre_desc">Z-A</option>
-    </select>
-  </div>
+    <div class="d-flex justify-content-end mb-3">
+        <label for="ordenSelect" class="col-form-label me-2">Ordenar por:</label>
+        <select id="ordenSelect" class="form-select w-auto">
+            <option value="precio_asc">Menor precio</option>
+            <option value="precio_desc">Mayor precio</option>
+            <option value="nombre_asc">A-Z</option>
+            <option value="nombre_desc">Z-A</option>
+        </select>
+    </div>
 
-  <div id="tabla" class="mt-4"></div>
+    <div class="progress mb-4" id="loading-bar" style="display: none;">
+        <div class="progress-bar" role="progressbar" style="width: 0%;"></div>
+    </div>
+
+    <div id="productos-fijados-container" class="mb-4" style="display: none;">
+        <h4 class="mb-3"><i class="fas fa-thumbtack text-primary"></i> Productos Fijados</h4>
+        <div id="productos-fijados" class="row g-3"></div>
+        <hr class="mt-4">
+    </div>
+    
+    <div id="tabla-resultados" class="mt-4"></div>
 </div>
 
-<script src="/static/js/buscador.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="{{ url_for('static', filename='js/buscador.js') }}"></script>
+<div class="modal fade" id="modalConfiguracion" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalConfigLabel">Configuración de Precios de Venta</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <h6>Márgenes de Ganancia por Categoría</h6>
+                <p class="text-muted small">Define el porcentaje de ganancia...</p>
+                <div id="lista-categorias-margen" class="mb-4"></div>
+                <h6>Nueva Categoría</h6>
+                <div class="input-group">
+                    <input type="text" id="input-nueva-categoria" class="form-control" placeholder="Nombre de la nueva categoría">
+                    <button class="btn btn-outline-primary" type="button" onclick="agregarNuevaCategoria()">Agregar</button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                <button type="button" class="btn btn-success" onclick="guardarMargenes()">Guardar Cambios</button>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="modal fade" id="modalFijarProducto" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Fijar Producto y Calcular Venta</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p><strong>Producto:</strong> <span id="modal-producto-nombre"></span></p>
+                <p><strong>Costo:</strong> <span id="modal-producto-costo" class="fw-bold"></span></p>
+                
+                <hr>
+
+                <div class="mb-3">
+                    <label for="modal-categoria-select" class="form-label">Seleccionar Categoría de Venta:</label>
+                    <select id="modal-categoria-select" class="form-select"></select>
+                </div>
+                
+                <div class="text-end">
+                    <p class="mb-0">Precio de Venta Sugerido:</p>
+                    <h3 id="modal-producto-precio-final" class="text-success">$0.00</h3>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="confirmarFijarProducto()">Confirmar y Fijar</button>
+            </div>
+        </div>
+    </div>
+</div>
 </body>
 </html>

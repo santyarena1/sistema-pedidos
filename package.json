@@ -1,0 +1,23 @@
+{
+  "devDependencies": {
+    "tailwindcss": "^4.1.11"
+  },
+  "scripts": {
+    "watch": "npx tailwindcss -i ./static/src/input.css -o ./static/css/output.css --watch"
+  },
+  "name": "mi_api_escalable",
+  "version": "1.0.0",
+  "main": "tailwind.config.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/santyarena1/sistema-pedidos.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/santyarena1/sistema-pedidos/issues"
+  },
+  "homepage": "https://github.com/santyarena1/sistema-pedidos#readme",
+  "description": ""
+}

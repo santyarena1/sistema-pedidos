@@ -1,109 +1,69 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <title>Nuevo Pedido</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
-  <link rel="stylesheet" href="/static/css/pedidos.css" />
-  <script defer src="/static/js/pedidos.js"></script>
+    <meta charset="UTF-8" />
+    <title>Nuevo Pedido</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <link href="{{ url_for('static', filename='css/buscador.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/pedidos.css') }}" rel="stylesheet">
 </head>
-<body class="p-4">
-  <div class="d-flex">
-    <div id="sidebar">
-      <div class="sidebar-title"><i class="fas fa-cubes"></i> TheGamerShop</div>
-      <ul class="nav flex-column">
-        <li class="nav-item mb-2"><a class="nav-link text-white" href="/presupuestos"><i class="fas fa-file-invoice-dollar"></i> Presupuestos</a></li>
-        <li class="nav-item mb-2"><a class="nav-link text-white" href="/buscar"><i class="fas fa-search"></i> Comparador</a></li>
-        <li class="nav-item mb-2"><a class="nav-link text-white" href="/carrito"><i class="fas fa-shopping-cart"></i> Carrito</a></li>
-        <li class="nav-item mb-2"><a class="nav-link text-white" href="pc_armadas"><i class="fas fa-desktop"></i> PC Armadas</a></li>
-        <li class="nav-item mb-2"><a class="nav-link text-white" href="/pedidos"><i class="fas fa-truck"></i> Nuevo Pedido</a></li>
-        <li class="nav-item mb-2"><a class="nav-link text-white" href="/pedidos/lista"><i class="fas fa-list"></i> Lista de Pedidos</a></li>
-        <li class="nav-item mb-2"><a class="nav-link text-white" href="/stock"><i class="fas fa-boxes"></i> Lista de Stock</a></li>
-        <li class="nav-item mb-2"><a class="nav-link text-white" href="/componentes-presupuesto"><i class="fas fa-cogs"></i> Componentes</a></li>
-        <li class="nav-item mb-2"><a class="nav-link text-white active" href="/pcs_predeterminadas"><i class="fas fa-desktop"></i> PCs Predeterminadas</a></li>
-      </ul>
-    </div>
-
-    <div class="flex-grow-1 p-4" id="main-content">
-      <div class="container">
-        <div class="box rounded shadow-sm p-4">
-          <h1 class="mb-4"><i class="fas fa-truck me-2"></i>Nuevo Pedido</h1>
-
-          <form id="pedidoForm">
-            <!-- Datos del Cliente -->
-            <h4>🧍 Datos del Cliente</h4>
-            <div class="row mb-3">
-              <div class="col-md-4"><input class="form-control" name="nombre_cliente" placeholder="Nombre y Apellido" required /></div>
-              <div class="col-md-4"><input class="form-control" name="dni_cliente" placeholder="DNI / CUIL / CUIT" /></div>
-              <div class="col-md-4"><input class="form-control" name="telefono" placeholder="Teléfono" /></div>
-            </div>
-            <div class="row mb-3">
-              <div class="col-md-6"><input class="form-control" name="email" placeholder="Email" /></div>
-              <div class="col-md-6"><input class="form-control" name="direccion" placeholder="Dirección completa" /></div>
-            </div>
-            <div class="mb-4">
-              <select class="form-select" name="tipo_factura">
-                <option value="NA">Tipo de Factura</option>
-                <option>Factura A</option>
-                <option>Factura B</option>
-              </select>
-            </div>
-
-            <!-- Datos del Pedido -->
-            <h4>📦 Datos del Pedido</h4>
-            <div class="row mb-3">
-              <div class="col-md-4">
-                <input class="form-control" name="fecha_emision" type="date" required />
-              </div>
-              <div class="col-md-4">
-                <input class="form-control" name="numero_pedido" readonly value="N1000" />
-              </div>
-              <div class="col-md-4">
-                <select class="form-select" name="origen_venta">
-                  <option value="Meta">Meta</option>
-                  <option value="WhatsApp">WhatsApp</option>
-                  <option value="Local">Local</option>
-                  <option value="Frecuente">Frecuente</option>
-                  <option value="Recomendado">Recomendado</option>
-                  <option value="Instagram">Instagram</option>
-                </select>
-              </div>
-            </div>
-            <div class="row mb-3">
-              <div class="col-md-4">
-                <select class="form-select" name="vendedor">
-                  <option>Santy</option><option>Thiago</option><option>Lucas</option><option>Ale</option><option>Repe</option>
-                </select>
-              </div>
-              <div class="col-md-4">
-                <select class="form-select" name="forma_envio" onchange="this.value === 'RETIRA' ? document.getElementById('costoEnvio').style.display='none' : document.getElementById('costoEnvio').style.display='block'">
-                  <option>ANDREANI</option><option>DROPSHIPPING</option><option>MOTO</option><option>RETIRA</option>
-                </select>
-              </div>
-              <div class="col-md-4" id="costoEnvio">
-                <input class="form-control" name="costo_envio" placeholder="Costo envío" value="0" />
-              </div>
-            </div>
-
-            <!-- Contenido del Pedido -->
-            <h4>🛒 Contenido del Pedido</h4>
-            <div id="productosContainer" class="mb-3"></div>
-            <button type="button" class="btn btn-outline-primary mb-4" onclick="agregarProducto()"><i class="fas fa-plus"></i> Agregar Producto</button>
-
-            <!-- Pagos -->
-            <h4>💰 Pagos</h4>
-            <div id="pagosContainer" class="mb-3"></div>
-            <button type="button" class="btn btn-outline-success mb-4" onclick="agregarPago()"><i class="fas fa-wallet"></i> Agregar Pago</button>
-
-            <button id="generarPedidoBtn" class="btn btn-dark">📄 Generar Constancia y Guardar</button>
-
-          </form>
-
+<body>
+    <div class="d-flex">
+        <div id="sidebar">
+            <div class="sidebar-title mb-4"><i class="fas fa-cubes me-2"></i>TheGamerShop</div>
+            <ul class="nav flex-column">
+                <li class="nav-item mb-2"><a class="nav-link" href="/presupuestos"><i class="fas fa-file-invoice-dollar fa-fw me-2"></i>Presupuestos</a></li>
+                <li class="nav-item mb-2"><a class="nav-link" href="/buscar"><i class="fas fa-search fa-fw me-2"></i>Comparador</a></li>
+                <li class="nav-item mb-2"><a class="nav-link" href="/carrito"><i class="fas fa-shopping-cart fa-fw me-2"></i>Carrito</a></li>
+                <li class="nav-item mb-2"><a class="nav-link" href="/pc_armadas"><i class="fas fa-desktop fa-fw me-2"></i>PC Armadas</a></li>
+                <li class="nav-item mb-2"><a class="nav-link active" href="/pedidos"><i class="fas fa-truck fa-fw me-2"></i>Nuevo Pedido</a></li>
+                <li class="nav-item mb-2"><a class="nav-link" href="/pedidos/lista"><i class="fas fa-list fa-fw me-2"></i>Lista de Pedidos</a></li>
+                <li class="nav-item mb-2"><a class="nav-link" href="/stock"><i class="fas fa-boxes fa-fw me-2"></i>Stock</a></li>
+                <li class="nav-item mb-2"><a class="nav-link" href="/componentes-presupuesto"><i class="fas fa-cogs fa-fw me-2"></i>Componentes</a></li>
+                <li class="nav-item mb-2"><a class="nav-link" href="/pcs_predeterminadas"><i class="fas fa-desktop fa-fw me-2"></i>PCs Predeterminadas</a></li>
+            </ul>
         </div>
-      </div>
+
+        <div id="main-content">
+            <h1><i class="fas fa-truck me-2"></i>Nuevo Pedido</h1>
+            <div class="card card-body mt-4">
+                <form id="pedidoForm">
+                    <h5 class="form-section-title">Datos del Cliente</h5>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-4"><input class="form-control" name="nombre_cliente" placeholder="Nombre y Apellido" required /></div>
+                        <div class="col-md-4"><input class="form-control" name="dni_cliente" placeholder="DNI / CUIL / CUIT" /></div>
+                        <div class="col-md-4"><input class="form-control" name="telefono" placeholder="Teléfono" /></div>
+                        <div class="col-md-6"><input class="form-control" name="email" type="email" placeholder="Email" /></div>
+                        <div class="col-md-6"><input class="form-control" name="direccion" placeholder="Dirección completa" /></div>
+                    </div>
+
+                    <h5 class="form-section-title">Datos del Pedido</h5>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-3"><input class="form-control" name="fecha_emision" type="date" required /></div>
+                        <div class="col-md-3"><select class="form-select" name="vendedor"><option>Santy</option><option>Thiago</option><option>Lucas</option><option>Ale</option><option>Repe</option></select></div>
+                        <div class="col-md-3"><select class="form-select" name="origen_venta"><option>Meta</option><option>WhatsApp</option><option>Local</option><option>Frecuente</option><option>Recomendado</option><option>Instagram</option></select></div>
+                        <div class="col-md-3"><select class="form-select" name="tipo_factura"><option value="NA">Sin Factura</option><option>Factura A</option><option>Factura B</option></select></div>
+                        <div class="col-md-4"><select class="form-select" name="forma_envio" onchange="this.value === 'RETIRA' ? document.getElementById('costoEnvio').style.display='none' : document.getElementById('costoEnvio').style.display='block'"><option>ANDREANI</option><option>DROPSHIPPING</option><option>MOTO</option><option>RETIRA</option></select></div>
+                        <div class="col-md-4" id="costoEnvio"><input class="form-control" name="costo_envio" placeholder="Costo envío" value="0" /></div>
+                    </div>
+                    
+                    <h5 class="form-section-title">Contenido del Pedido</h5>
+                    <div id="productosContainer" class="mb-3"></div>
+                    <button type="button" class="btn btn-outline-primary btn-sm mb-4" onclick="agregarProducto()"><i class="fas fa-plus me-1"></i> Agregar Producto</button>
+
+                    <h5 class="form-section-title">Pagos</h5>
+                    <div id="pagosContainer" class="mb-3"></div>
+                    <button type="button" class="btn btn-outline-success btn-sm mb-4" onclick="agregarPago()"><i class="fas fa-wallet me-1"></i> Agregar Pago</button>
+
+                    <div class="text-end">
+                        <button type="submit" id="generarPedidoBtn" class="btn btn-red btn-lg">Guardar y Generar Constancia</button>
+                    </div>
+                </form>
+            </div>
+        </div>
     </div>
-  </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='js/pedidos.js') }}"></script>
 </body>
 </html>
-

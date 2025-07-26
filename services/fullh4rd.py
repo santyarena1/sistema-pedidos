@@ -1,52 +1,92 @@
+import asyncio
 from playwright.async_api import async_playwright
-from db.queries import obtener_desde_db, guardar_en_db
-from utils.format import formatear_precio
 
-async def buscar_fullh4rd(producto):
-    cache = obtener_desde_db(producto, "FullH4rd")
-    if cache:
-        return [{**fila, "precio": formatear_precio(fila["precio"])} for fila in cache]
+# Quitamos 'formatear_precio' ya que el formateo ahora lo hace routes/buscar.py
+# from utils.format import formatear_precio
 
-    query = producto.replace(" ", "%20")
+async def buscar_en_fullhard(termino_busqueda):
+    """
+    Busca un producto en FullH4rd de forma asíncrona, manteniendo
+    la lógica original. No interactúa con la base de datos.
+    """
+    nombre_tienda = "FullH4rd"
+    print(f"-> Buscando en {nombre_tienda}...")
+
+    # Mantenemos tu lógica para construir la URL
+    query = termino_busqueda.replace(" ", "%20")
     url = f"https://www.fullh4rd.com.ar/cat/search/{query}"
     resultados = []
 
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
-        context = await browser.new_context()
-        page = await context.new_page()
+    try:
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            context = await browser.new_context()
+            page = await context.new_page()
 
-        # ⚡ Bloquear recursos pesados
-        await page.route("**/*", lambda route, request:
-            route.abort() if request.resource_type in ["image", "stylesheet", "font", "media"] else route.continue_()
-        )
+            # Mantenemos tu lógica para bloquear recursos pesados
+            await page.route(
+                "**/*",
+                lambda route: route.abort()
+                if route.request.resource_type in ["image", "stylesheet", "font", "media"]
+                else route.continue_(),
+            )
 
-        await page.goto(url, wait_until="networkidle")
-        await page.wait_for_timeout(1500)
+            # Mantenemos tu lógica de navegación y espera
+            await page.goto(url, wait_until="networkidle", timeout=90000)
+            await page.wait_for_timeout(1500)
 
-        items = page.locator("div.item.product-list")
-        count = await items.count()
+            # Mantenemos tu selector de items exacto
+            items = page.locator("div.item.product-list")
+            count = await items.count()
 
-        for i in range(count):
-            nombre = await items.nth(i).locator("div.info h3").text_content()
-            precio = await items.nth(i).locator("div.price").text_content()
-            link = await items.nth(i).locator("a").get_attribute("href")
+            if count == 0:
+                print(f"-> No se encontraron productos en {nombre_tienda} para '{termino_busqueda}'.")
+                await browser.close()
+                return []
 
-            if nombre and precio:
+            for i in range(count):
                 try:
-                    precio_limpio = precio.strip().split(" ")[0]
-                    valor = float(precio_limpio.replace("$", "").replace(".", "").replace(",", "."))
-                except:
-                    valor = 0
+                    # Mantenemos tus selectores para nombre, precio y link
+                    nombre = await items.nth(i).locator("div.info h3").text_content()
+                    precio = await items.nth(i).locator("div.price").text_content()
+                    link = await items.nth(i).locator("a").get_attribute("href")
 
-                guardar_en_db(producto, "FullH4rd", nombre.strip(), valor, f"https://www.fullh4rd.com.ar{link}" if link else "")
-                resultados.append({
-                    "sitio": "FullH4rd",
-                    "producto": nombre.strip(),
-                    "precio": formatear_precio(valor),
-                    "precio_num": valor,
-                    "link": f"https://www.fullh4rd.com.ar{link}" if link else ""
-                })
+                    if nombre and precio:
+                        # Mantenemos tu lógica para limpiar el precio
+                        precio_limpio = precio.strip().split(" ")[0]
+                        valor_numerico = float(
+                            precio_limpio.replace("$", "").replace(".", "").replace(",", ".")
+                        )
 
-        await browser.close()
+                        # --- CORRECCIÓN CLAVE AQUÍ ---
+                        # Preparamos el diccionario para guardar en la BD.
+                        # La clave 'precio' contiene el número puro para que la BD lo acepte.
+                        resultados.append({
+                            "busqueda": termino_busqueda,
+                            "sitio": nombre_tienda,
+                            "producto": nombre.strip(),
+                            "precio": valor_numerico, # Precio NUMÉRICO para la BD
+                            "link": f"https://www.fullh4rd.com.ar{link}" if link else ""
+                        })
+                except Exception as e:
+                    # Mantenemos tu manejo de errores para items individuales
+                    print(f"-> ADVERTENCIA: Saltando un item en {nombre_tienda}. Error: {e}")
+
+            await browser.close()
+
+    except Exception as e:
+        print(f"-> ERROR GRAVE buscando en {nombre_tienda}: {e}")
+        return []
+
+    print(f"-> Búsqueda en {nombre_tienda} finalizada. {len(resultados)} productos encontrados.")
     return resultados
+
+# Mantenemos tu bloque de prueba intacto
+if __name__ == '__main__':
+    async def probar():
+        productos = await buscar_en_fullhard("Ryzen 5 5600G")
+        if productos:
+            for p in productos:
+                print(p)
+
+    asyncio.run(probar())

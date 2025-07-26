@@ -1,65 +1,136 @@
-body {
-    background: #fdf5f5;
-    font-family: 'Segoe UI', sans-serif;
-  }
-  
-  #main-content {
-    margin-left: 240px;
-    padding: 2rem;
-  }
-  
-  .btn-red {
-    background-color: #c0392b;
-    color: white;
-  }
-  
-  .btn-red:hover {
-    background-color: #a93226;
-  }
-  
-  .card-search {
-    background: white;
-    border-radius: 10px;
-    padding: 2rem;
-    box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
-  }
-  
-  h1 {
-    color: #b30000;
-    font-weight: bold;
-  }
-  
-  .table thead {
-    background-color: #b30000;
-    color: white;
-  }
-  
-  .table tbody tr:hover {
-    background-color: #f9e6e6;
-  }
+/* --- Estilos Inspirados en tu Imagen de Referencia --- */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
-  #sidebar {
-    position: fixed;
-    top: 0;
-    left: 0;
-    height: 100vh;
-    width: 240px;
-    background-color: #1c1c1c;
-    color: white;
-    padding: 2rem 1rem;
-    z-index: 100;
-  }
-  
-  .nav-link {
-    color: white;
-    font-size: 1rem;
+:root {
+    --bg-main: #f8f9fa;       /* Fondo gris muy claro */
+    --bg-panel: #ffffff;      /* Paneles blancos */
+    --border-color: #dee2e6;  /* Borde gris sutil */
+    --text-header: #212529;    /* Texto de títulos (negro suave) */
+    --text-body: #495057;      /* Texto de cuerpo (gris oscuro) */
+    --text-muted: #6c757d;      /* Texto de apoyo */
+    --accent-red: #d90429;      /* Rojo principal */
+    --accent-red-hover: #b90022;/* Rojo para hover */
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--bg-main);
+    color: var(--text-body);
     display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-  
-  .nav-link:hover {
-    color: #ffc107 !important;
-  }
-  
-  
+}
+
+/* --- Sidebar --- */
+#sidebar {
+    width: 240px;
+    background-color: #0d1117; /* Sidebar oscuro para contraste */
+    color: var(--text-muted);
+    height: 100vh;
+    padding: 1.5rem 1rem;
+    position: fixed;
+}
+#sidebar .sidebar-title { color: white; font-weight: 600; }
+#sidebar .nav-link { color: #adb5bd; border-radius: 6px; font-weight: 500; transition: all 0.2s ease; }
+#sidebar .nav-link:hover { color: white; background-color: #343a40; }
+#sidebar .nav-link.active { background-color: var(--accent-red); color: white !important; }
+
+/* --- Contenido Principal --- */
+#main-content {
+    margin-left: 240px;
+    padding: 2.5rem;
+    width: calc(100% - 240px);
+}
+#main-content > h1 {
+    font-weight: 700;
+    color: var(--text-header);
+    text-align: left !important;
+    margin-bottom: 2rem !important;
+}
+
+/* --- Panel de Búsqueda y Filtros --- */
+.card-search, .card-body {
+    background-color: var(--bg-panel) !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: 12px !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+.card-search { padding: 1.5rem; }
+
+.form-control, .form-select {
+    background-color: var(--bg-main) !important;
+    border-color: var(--border-color) !important;
+    border-radius: 8px !important;
+    height: 44px;
+    font-weight: 500;
+    color: var(--text-header) !important;
+}
+.form-control:focus, .form-select:focus {
+    border-color: var(--accent-red) !important;
+    box-shadow: 0 0 0 3px rgba(217, 4, 41, 0.2) !important;
+}
+
+/* --- Botones --- */
+.btn-red {
+    background-color: var(--accent-red);
+    color: white;
+    font-weight: 600;
+    border: none;
+    border-radius: 8px !important;
+    height: 44px;
+    transition: all 0.2s ease;
+}
+.btn-red:hover { background-color: var(--accent-red-hover); }
+
+.btn-success { /* Botón de configuración */
+    background-color: #e9ecef !important;
+    color: #495057 !important;
+    border: 1px solid #ced4da !important;
+    font-weight: 600;
+    height: 44px;
+    border-radius: 8px !important;
+}
+
+/* --- Tabla de Resultados --- */
+#tabla-resultados table {
+    border-collapse: separate;
+    border-spacing: 0 10px;
+}
+#tabla-resultados th {
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    font-size: 0.8rem;
+    border: none !important;
+    padding-bottom: 1rem;
+}
+#tabla-resultados td {
+    background-color: white;
+    padding: 1.25rem;
+    vertical-align: middle;
+    border: 1px solid var(--border-color);
+    border-style: solid none;
+}
+#tabla-resultados td:first-child { border-left-style: solid; border-radius: 10px 0 0 10px; }
+#tabla-resultados td:last-child { border-right-style: solid; border-radius: 0 10px 10px 0; }
+
+/* --- Barra de Progreso Animada --- */
+.progress {
+    background-color: #e9ecef !important;
+    border-radius: 4px !important;
+    height: 6px !important;
+}
+.progress-bar {
+    background-color: var(--accent-red) !important;
+    transition: width 0.5s ease-in-out !important; /* Animación suave */
+}
+
+/* ... (tus estilos existentes) ... */
+
+/* Estilo para las imágenes en la tabla de resultados */
+#tabla-resultados img {
+    width: 60px;
+    height: 60px;
+    object-fit: contain; /* Asegura que la imagen se vea completa sin deformarse */
+    background-color: #fff;
+    padding: 2px;
+    border: 1px solid #ddd;
+}

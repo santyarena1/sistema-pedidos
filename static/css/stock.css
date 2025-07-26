@@ -1,0 +1,76 @@
+/* --- Estilos para Stock (Basado en buscador.css) --- */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+/* Usamos las mismas variables de tu buscador.css para total consistencia */
+:root {
+    --bg-main: #f8f9fa;
+    --bg-panel: #ffffff;
+    --border-color: #dee2e6;
+    --text-header: #212529;
+    --text-body: #495057;
+    --text-muted: #6c757d;
+    --accent-red: #d90429;
+    --accent-blue: #0d6efd;
+    --accent-green: #198754;
+    --accent-yellow: #ffc107;
+    --accent-cyan: #0dcaf0;
+}
+
+/* Estilos para los badges de estado de los items */
+.estado-badge {
+    padding: 0.25em 0.6em;
+    font-size: 0.75em;
+    font-weight: 700;
+    line-height: 1;
+    text-align: center;
+    white-space: nowrap;
+    vertical-align: baseline;
+    border-radius: 50rem;
+    color: #fff;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.estado-disponible { background-color: var(--accent-green); }
+.estado-vendido { background-color: var(--accent-red); }
+.estado-rma { background-color: var(--accent-yellow); color: #000; }
+.estado-reservado { background-color: var(--accent-cyan); }
+
+/* Ajustes para que la tabla principal sea más limpia */
+#tabla-stock-productos th {
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    font-size: 0.8rem;
+    border: none !important;
+}
+
+#tabla-stock-productos td {
+    vertical-align: middle;
+}
+
+/* Estilos para los botones de acción en la tabla */
+.btn-accion {
+    width: 35px;
+    height: 35px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+}
+
+/* Ajustes para los modales */
+.modal-xl {
+    max-width: 1140px;
+}
+
+.modal-body h6 {
+    font-weight: 600;
+    color: var(--text-header);
+    margin-top: 1rem;
+    margin-bottom: 0.75rem;
+}
+
+.bg-light-sutil {
+    background-color: #f8f9fa !important;
+}
