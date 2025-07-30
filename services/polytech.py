@@ -14,7 +14,7 @@ def obtener_lista_completa_polytech():
     
     with sync_playwright() as p:
         # Dejamos el navegador visible para asegurar compatibilidad
-        browser = p.chromium.launch(headless=False)
+        browser = p.chromium.launch(headless=True)
         context = browser.new_context(accept_downloads=True)
         page = context.new_page()
 
