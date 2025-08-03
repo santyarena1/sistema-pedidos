@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Etiquetas</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 0; }
+        /* Contenedor de cada etiqueta individual */
+        .etiqueta {
+            width: 48mm;
+            height: 23mm;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-around; /* Distribuye el espacio */
+            align-items: center;
+            page-break-after: always; /* Clave para la impresión térmica */
+        }
+        /* Evita que el último elemento genere una página en blanco */
+        .etiqueta:last-child {
+            page-break-after: avoid;
+        }
+        /* Ajusta los códigos de barras SVG */
+        svg {
+            max-width: 100%;
+            height: auto;
+        }
+    </style>
+</head>
+<body>
+    {% for item in items %}
+    <div class="etiqueta">
+        {{ sku_barcode_svg | safe }}
+        
+        {{ item.sn_barcode_svg | safe }}
+    </div>
+    {% endfor %}
+</body>
+</html>

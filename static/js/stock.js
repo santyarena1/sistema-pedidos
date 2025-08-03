@@ -8,24 +8,45 @@ let productoSeleccionado = null;
 function formatoPrecioARS(numero) {
     const numeroLimpio = parseFloat(numero) || 0;
     return new Intl.NumberFormat('es-AR', {
-        style: 'currency',
-        currency: 'ARS',
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
+        style: 'currency', currency: 'ARS', minimumFractionDigits: 2, maximumFractionDigits: 2
     }).format(numeroLimpio);
 }
+
+// --- AGREGA ESTA VARIABLE GLOBAL ---
+let currentSort = {
+    by: 'nombre',
+    order: 'asc'
+};
 // --- INICIALIZACIÓN DE LA PÁGINA ---
 document.addEventListener("DOMContentLoaded", () => {
+    poblarFiltros();
     cargarProductos();
     
-    document.getElementById('busquedaStock').addEventListener('input', (e) => {
-        const filtro = e.target.value.toLowerCase();
-        document.querySelectorAll('#tabla-stock-productos tr').forEach(fila => {
-            const textoFila = fila.textContent.toLowerCase();
-            fila.style.display = textoFila.includes(filtro) ? '' : 'none';
+    // Listeners para los filtros
+    document.getElementById('filtro-marca').addEventListener('change', cargarProductos);
+    document.getElementById('filtro-categoria').addEventListener('change', cargarProductos);
+    document.getElementById('filtro-deposito').addEventListener('change', cargarProductos);
+    document.getElementById('filtro-disponibles').addEventListener('change', cargarProductos);
+    document.getElementById('btn-limpiar-filtros').addEventListener('click', limpiarFiltros);
+    document.getElementById('buscador-general').addEventListener('input', () => {
+        cargarProductos();
+    });
+
+    // Listeners para ordenar tabla
+    document.querySelectorAll('.sortable').forEach(header => {
+        header.addEventListener('click', function() {
+            const sortBy = this.dataset.sort;
+            if (currentSort.by === sortBy) {
+                currentSort.order = currentSort.order === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSort.by = sortBy;
+                currentSort.order = 'asc';
+            }
+            cargarProductos();
         });
     });
 
+    // Tu listener para el lector de SKU se mantiene
     document.getElementById('lectorSku').addEventListener('keydown', (event) => {
         if (event.key === 'Enter') {
             event.preventDefault();
@@ -36,38 +57,66 @@ document.addEventListener("DOMContentLoaded", () => {
 
 //--- FUNCIONES DE LA VISTA PRINCIPAL (TIPOS DE PRODUCTO) ---
 async function cargarProductos() {
+    const params = new URLSearchParams();
+    const marca = document.getElementById('filtro-marca').value;
+    const categoria = document.getElementById('filtro-categoria').value;
+    const deposito = document.getElementById('filtro-deposito').value;
+    const disponibles = document.getElementById('filtro-disponibles').checked;
+    const busqueda = document.getElementById('buscador-general').value;
+    if (busqueda) {
+        params.append('q', busqueda);
+    }
+
+    if (marca) params.append('marca', marca);
+    if (categoria) params.append('categoria', categoria);
+    if (deposito) params.append('deposito', deposito);
+    if (disponibles) params.append('disponibles', 'true');
+    
+    params.append('sortBy', currentSort.by);
+    params.append('sortOrder', currentSort.order);
+    
+    const url = `/api/stock/productos?${params.toString()}`;
+    const tbody = document.getElementById('tabla-stock-productos');
+    tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Cargando...</span></div></td></tr>';
+
     try {
-        const response = await fetch('/api/stock/productos');
+        const response = await fetch(url);
         if (!response.ok) throw new Error('Error de red al cargar productos.');
         
         const productos = await response.json();
-        const tbody = document.getElementById('tabla-stock-productos');
         tbody.innerHTML = '';
-        productos.forEach(p => {
-            const fechaModif = p.ultima_modificacion ? new Date(p.ultima_modificacion).toLocaleString('es-AR') : '-';
-            const nombreEscapado = p.nombre.replace(/'/g, "\\'");
-            // APLICAMOS EL FORMATEO DE PRECIO AQUÍ
-            const precioFormateado = formatoPrecioARS(p.precio_venta_sugerido);
 
-            tbody.innerHTML += `
-                <tr id="producto-row-${p.id}">
-                    <td>${p.sku || 'N/A'}</td>
-                    <td><strong>${p.nombre}</strong></td>
-                    <td>${p.marca || 'N/A'}</td>
-                    <td>${p.categoria || 'N/A'}</td>
-                    <td class="text-center"><span class="badge bg-primary rounded-pill fs-6">${p.cantidad_disponible || 0}</span></td>
-                    <td>${precioFormateado}</td>
-                    <td>${fechaModif}</td>
-                    <td class="text-end">
-                        <button class="btn btn-sm btn-outline-secondary btn-accion" title="Editar Producto" onclick='abrirModalEditarProducto(${JSON.stringify(p)})'><i class="fas fa-edit"></i></button>
-                        <button class="btn btn-sm btn-outline-primary btn-accion ms-1" title="Gestionar Items" onclick="abrirModalItems(${p.id}, '${nombreEscapado}')"><i class="fas fa-barcode"></i></button>
-                        <button class="btn btn-sm btn-outline-danger btn-accion ms-1" title="Eliminar Producto" onclick="eliminarProducto(${p.id}, '${nombreEscapado}')"><i class="fas fa-trash-alt"></i></button>
-                    </td>
-                </tr>
-            `;
-        });
+        if (productos.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">No se encontraron productos con los filtros seleccionados.</td></tr>';
+        } else {
+            productos.forEach(p => {
+                const fechaModif = p.ultima_modificacion ? new Date(p.ultima_modificacion).toLocaleString('es-AR') : '-';
+                const nombreEscapado = p.nombre.replace(/'/g, "\\'");
+                const precioFormateado = formatoPrecioARS(p.precio_venta_sugerido);
+                tbody.innerHTML += `
+                    <tr id="producto-row-${p.id}">
+                        <td>${p.sku || 'N/A'}</td>
+                        <td><strong>${p.nombre}</strong></td>
+                        <td>${p.marca || 'N/A'}</td>
+                        <td>${p.categoria || 'N/A'}</td>
+                        <td class="text-center"><span class="badge bg-primary rounded-pill fs-6">${p.cantidad_disponible || 0}</span></td>
+                        <td>${precioFormateado}</td>
+                        <td>${fechaModif}</td>
+                        <td class="text-end">
+                            <button class="btn btn-sm btn-outline-secondary btn-accion" title="Editar Producto" onclick='abrirModalEditarProducto(${JSON.stringify(p)})'><i class="fas fa-edit"></i></button>
+                            <button class="btn btn-sm btn-outline-primary btn-accion ms-1" title="Gestionar Items" onclick="abrirModalItems(${p.id}, '${nombreEscapado}')"><i class="fas fa-barcode"></i></button>
+                            <button class="btn btn-sm btn-outline-info btn-accion ms-1" title="Imprimir Etiquetas" onclick="imprimirEtiquetas(${p.id})"><i class="fas fa-print"></i></button>
+                            <button class="btn btn-sm btn-outline-danger btn-accion ms-1" title="Eliminar Producto" onclick="eliminarProducto(${p.id}, '${nombreEscapado}')"><i class="fas fa-trash-alt"></i></button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+        actualizarIconosSort();
+        mostrarFiltrosActivos();
     } catch (error) {
         console.error("Error en cargarProductos:", error);
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-danger py-4">Error al cargar los productos. Revise la consola.</td></tr>';
     }
 }
 
@@ -215,7 +264,6 @@ async function abrirModalItems(productoId, nombreProducto) {
         const tbody = document.getElementById('tabla-items-individuales');
         tbody.innerHTML = '';
 
-        // Agregamos la cabecera de la columna de Acciones si no existe
         const thead = tbody.previousElementSibling;
         if (!thead.querySelector('.col-acciones')) {
             thead.rows[0].innerHTML += '<th class="text-end col-acciones">Acciones</th>';
@@ -227,7 +275,6 @@ async function abrirModalItems(productoId, nombreProducto) {
             items.forEach(item => {
                 const estadoClass = item.estado ? `estado-${item.estado.toLowerCase().replace(' ', '-')}` : '';
                 const fechaModif = item.ultima_modificacion ? new Date(item.ultima_modificacion).toLocaleString('es-AR') : '-';
-                // Pasamos el objeto 'item' completo a la función de editar
                 const itemString = JSON.stringify(item).replace(/'/g, "\\'");
                 
                 tbody.innerHTML += `
@@ -235,11 +282,14 @@ async function abrirModalItems(productoId, nombreProducto) {
                         <td>${item.id}</td>
                         <td>${item.serial_number || 'N/A'}</td>
                         <td><span class="badge ${estadoClass}">${item.estado || 'N/A'}</span></td>
-                        <td>$${parseFloat(item.costo || 0).toFixed(2)}</td>
+                        <td>${formatoPrecioARS(item.costo)}</td>
                         <td>${item.deposito || 'N/A'}</td>
                         <td>${fechaModif}</td>
                         <td class="text-end">
                             <button class="btn btn-sm btn-outline-secondary py-0 px-1" title="Editar Item" onclick='editarItem(${itemString})'><i class="fas fa-edit"></i></button>
+                            
+                            <button class="btn btn-sm btn-outline-info py-0 px-1 ms-1" title="Imprimir Etiqueta" onclick="imprimirEtiquetaIndividual(${item.id})"><i class="fas fa-print"></i></button>
+                            
                             <button class="btn btn-sm btn-outline-danger py-0 px-1 ms-1" title="Eliminar Item" onclick="eliminarItem(${item.id}, '${item.serial_number}')"><i class="fas fa-trash-alt"></i></button>
                         </td>
                     </tr>`;
@@ -509,4 +559,111 @@ async function eliminarItem(itemId, serialNumber) {
         alert("Error al eliminar el item.");
         console.error(error);
     }
+}
+
+// --- 2. AGREGA ESTA NUEVA FUNCIÓN (puede ir al final de tu archivo) ---
+/**
+ * [NUEVO] Llama al backend para generar y mostrar el PDF de etiquetas.
+ * @param {number} productoId El ID del producto del cual imprimir etiquetas.
+ */
+function imprimirEtiquetas(productoId) {
+    // Abrimos la URL en una nueva pestaña. El navegador se encargará de mostrar el PDF.
+    window.open(`/api/stock/productos/${productoId}/imprimir_etiquetas`, '_blank');
+}
+
+// --- 2. AGREGA ESTA NUEVA FUNCIÓN (puede ir junto a la otra de imprimir) ---
+/**
+ * [NUEVO] Llama al backend para generar y mostrar el PDF de una sola etiqueta.
+ * @param {number} itemId El ID del item (SN) específico a imprimir.
+ */
+function imprimirEtiquetaIndividual(itemId) {
+    window.open(`/api/stock/items/${itemId}/imprimir_etiqueta`, '_blank');
+}
+
+async function poblarFiltros() {
+    const poblarSelect = async (elementId, endpoint) => {
+        try {
+            const response = await fetch(`/api/stock/${endpoint}`);
+            if (!response.ok) return;
+            const data = await response.json();
+            const select = document.getElementById(elementId);
+            data.forEach(item => {
+                const option = new Option(item, item);
+                select.add(option);
+            });
+        } catch (error) { console.error(`Error poblando ${endpoint}:`, error); }
+    };
+    await Promise.all([
+        poblarSelect('filtro-marca', 'marcas'),
+        poblarSelect('filtro-categoria', 'categorias'),
+        poblarSelect('filtro-deposito', 'depositos')
+    ]);
+}
+
+function limpiarFiltros() {
+    document.getElementById('buscador-general').value = '';
+    document.getElementById('filtro-marca').value = '';
+    document.getElementById('filtro-categoria').value = '';
+    document.getElementById('filtro-deposito').value = '';
+    document.getElementById('filtro-disponibles').checked = false;
+    currentSort = { by: 'nombre', order: 'asc' }; // Opcional: resetear orden al limpiar
+    cargarProductos();
+}
+
+function mostrarFiltrosActivos() {
+    const container = document.getElementById('filtros-activos-container');
+    const pillsContainer = document.getElementById('filtros-activos');
+    pillsContainer.innerHTML = '';
+    let hayFiltros = false;
+
+    const agregarPill = (label, valor, limpiarFn) => {
+        if (valor) {
+            pillsContainer.innerHTML += `
+                <span class="badge bg-primary d-flex align-items-center">
+                    ${label}: ${valor}
+                    <button type="button" class="btn-close btn-close-white ms-2" style="font-size: 0.6em;" onclick="${limpiarFn}"></button>
+                </span>`;
+            hayFiltros = true;
+        }
+    };
+
+    agregarPill('Búsqueda', document.getElementById('buscador-general').value, "limpiarFiltro('buscador-general')");
+    agregarPill('Marca', document.getElementById('filtro-marca').value, "limpiarFiltro('filtro-marca')");
+    agregarPill('Categoría', document.getElementById('filtro-categoria').value, "limpiarFiltro('filtro-categoria')");
+    agregarPill('Depósito', document.getElementById('filtro-deposito').value, "limpiarFiltro('filtro-deposito')");
+    
+    
+    if (document.getElementById('filtro-disponibles').checked) {
+        pillsContainer.innerHTML += `
+            <span class="badge bg-success d-flex align-items-center">
+                Solo con stock
+                <button type="button" class="btn-close btn-close-white ms-2" style="font-size: 0.6em;" onclick="limpiarFiltro('filtro-disponibles')"></button>
+            </span>`;
+        hayFiltros = true;
+    }
+    container.style.display = hayFiltros ? 'block' : 'none';
+}
+
+function limpiarFiltro(elementId) {
+    const element = document.getElementById(elementId);
+    if (element.type === 'checkbox') { element.checked = false; } 
+    else { element.value = ''; }
+    
+    if (element.type === 'text') { // Esto sirve para el buscador
+        element.value = '';
+    }
+    cargarProductos();
+}
+
+function actualizarIconosSort() {
+    document.querySelectorAll('.sortable').forEach(header => {
+        const sortIcon = header.querySelector('i');
+        const column = header.dataset.sort;
+        sortIcon.classList.remove('fa-sort', 'fa-sort-up', 'fa-sort-down');
+        if (column === currentSort.by) {
+            sortIcon.classList.add(currentSort.order === 'asc' ? 'fa-sort-up' : 'fa-sort-down');
+        } else {
+            sortIcon.classList.add('fa-sort');
+        }
+    });
 }

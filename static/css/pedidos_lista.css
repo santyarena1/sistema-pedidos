@@ -1,11 +1,288 @@
-.summary-card{background-color:var(--bg-panel);border:1px solid var(--border-color);border-radius:12px;padding:1.25rem;text-align:center;height:100%}.summary-card h6{font-weight:700;color:var(--text-muted);text-transform:uppercase;font-size:.85rem;margin-bottom:.5rem}.summary-card p{font-size:2rem;font-weight:700;color:var(--text-header);margin:0}.summary-card p.text-danger{color:var(--accent-red)!important}.pedido-card{background-color:var(--bg-panel);border:1px solid var(--border-color);border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,.05);padding:0;font-size:16px}.pedido-card.edit-mode{border-color:var(--accent-red);box-shadow:0 0 0 3px rgba(217,4,41,.2)}.pedido-header{display:flex;justify-content:space-between;align-items:center;padding:1rem 1.5rem;border-radius:11px 11px 0 0;margin-bottom:1.5rem;transition:background-color .3s ease}.pedido-header h5{color:inherit;font-weight:700;margin:0;font-size:1.25rem}.pedido-header .badge{background-color:rgba(0,0,0,.2)!important;border:1px solid hsla(0,0%,100%,.5);font-size:.9rem;font-weight:600;padding:.5em .8em}.pedido-header .btn{color:#fff;border-color:hsla(0,0%,100%,.7);background-color:hsla(0,0%,100%,.1)}.pedido-header .btn:hover{background-color:hsla(0,0%,100%,.2);border-color:#fff}.pedido-body{padding:0 1.5rem 1.5rem}.info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:.5rem 2rem;margin-bottom:1.5rem}.info-item{margin-bottom:.8rem}.info-item strong{display:block;font-size:.8rem;font-weight:700;color:#888;text-transform:uppercase;margin-bottom:.2rem}.info-item .value-text{font-size:1.1rem;font-weight:600;color:var(--text-header)}.edit-mode .value-text{display:none}.info-item input,.info-item select{display:none}.edit-mode .info-item input,.edit-mode .info-item select{display:block;width:100%;font-size:1rem;font-weight:500;border:1px solid var(--border-color);background-color:var(--bg-main);padding:.5rem .75rem;border-radius:6px}.section-title{font-weight:700;color:var(--text-header);text-transform:uppercase;font-size:.85rem;margin-top:1rem;margin-bottom:1rem;padding-bottom:.5rem;border-bottom:2px solid #eee}.table-pedidos{width:100%;table-layout:fixed;border-collapse:collapse;font-size:.9rem}.table-pedidos th{font-weight:600;color:var(--text-muted);text-align:left;padding:.5rem;border-bottom:2px solid var(--border-color)}.table-pedidos td{padding:.6rem .5rem;border-bottom:1px solid #eee;vertical-align:middle;font-weight:500;word-break:break-word}.table-pedidos td input,.table-pedidos td select{font-size:.9rem;padding:6px 10px;width:100%;border:1px solid var(--border-color);border-radius:6px}.table-pedidos input:disabled,.table-pedidos select:disabled{background:0 0;border-color:transparent;padding-left:0;padding-right:0;pointer-events:none}.tabla-productos .col-proveedor{width:15%}.tabla-productos .col-producto{width:40%}.tabla-productos .col-sku{width:10%}.tabla-productos .col-precio{width:13%}.tabla-productos .col-estado{width:12%}.tabla-productos .col-cant,.tabla-productos .col-cambio{width:5%;text-align:center}.tabla-productos .col-accion{width:3%;text-align:center}.tabla-productos td.col-producto input{width:100%}.tabla-productos td.col-producto{font-weight:700;text-transform:uppercase}.edit-mode .tabla-productos td.col-producto input{font-weight:700;text-transform:uppercase}.tabla-productos td:nth-child(4),.tabla-productos td:nth-child(5){font-weight:700}.tabla-pagos .col-forma{width:35%}.tabla-pagos .col-monto{width:28%;font-weight:700}.tabla-pagos .col-tipo-cambio{width:15%}.tabla-pagos .col-fecha{width:22%}.totales{display:flex;flex-direction:row;justify-content:flex-end;align-items:baseline;gap:1.5rem;margin-top:1rem;padding:1rem .5rem;border-top:1px solid #eee}.totales p{margin:0;font-size:1.1rem}.totales strong{color:var(--text-muted);font-weight:600;font-size:.9rem}.totales .total-debe{font-size:1.25rem;color:var(--accent-red);font-weight:700}.acciones{display:flex;flex-wrap:wrap;gap:.75rem;justify-content:flex-end;margin-top:1.5rem;padding-top:1.5rem;border-top:1px solid var(--border-color)}.ultima-modif{text-align:right;font-style:italic;margin-top:1rem;font-size:.8rem;color:var(--text-muted)}
-.factura-indicator {
-    position: absolute;
-    top: -5px;
-    right: -5px;
+/* --- ESTILOS GENERALES Y TARJETAS DE RESUMEN --- */
+.summary-card {
+    background-color: #fff;
+    border: 1px solid #e9ecef;
+    border-radius: 12px;
+    padding: 1.25rem;
+    text-align: center;
+    height: 100%;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+}
+
+.summary-card h6 {
+    font-weight: 700;
+    color: #6c757d;
+    text-transform: uppercase;
+    font-size: .85rem;
+    margin-bottom: .5rem;
+}
+
+.summary-card p {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #212529;
+    margin: 0;
+}
+
+.summary-card p.text-danger {
+    color: #dc3545 !important;
+}
+
+/* --- TARJETA DE PEDIDO --- */
+.pedido-card {
+    background-color: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,.05);
+    margin-bottom: 1.5rem;
+    overflow: hidden;
+}
+/* Reemplaza la regla .table-pedidos input:disabled, .table-pedidos select:disabled por esta: */
+
+
+
+.pedido-card.edit-mode {
+    border-color: #d90429;
+    box-shadow: 0 0 0 3px rgba(217,4,41,.2);
+}
+
+/* --- ENCABEZADO DE LA TARJETA --- */
+.pedido-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid #e9ecef;
+    transition: background-color .3s ease;
+}
+
+.pedido-header h5 {
+    font-weight: 700;
+    margin: 0;
+    font-size: 1.25rem;
+}
+
+.pedido-header .badge {
+    font-size: .9rem;
+    font-weight: 600;
+    padding: .5em .8em;
+}
+
+.pedido-header .btn {
+    color: #fff;
+    border-color: hsla(0,0%,100%,.7);
+    background-color: hsla(0,0%,100%,.1);
+}
+
+.pedido-header .btn:hover {
+    background-color: hsla(0,0%,100%,.2);
+    border-color: #fff;
+}
+
+/* --- CUERPO DE LA TARJETA --- */
+.pedido-body {
+    padding: 1.5rem;
+}
+
+.info-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: .5rem 2rem;
+}
+
+.info-item {
+    margin-bottom: .8rem;
+}
+
+.info-item strong {
+    display: block;
+    font-size: .8rem;
+    font-weight: 700;
+    color: #888;
+    text-transform: uppercase;
+    margin-bottom: .2rem;
+}
+
+.info-item .value-text {
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.edit-mode .value-text {
+    display: none;
+}
+
+.info-item input, .info-item select {
+    display: none;
+}
+
+.edit-mode .info-item input, .edit-mode .info-item select {
+    display: block;
+    width: 100%;
     font-size: 1rem;
-    color: #198754; /* Verde éxito */
-    background-color: white;
-    border-radius: 50%;
-    line-height: 1;
+    font-weight: 500;
+}
+
+.pedido-card:not(.edit-mode) .table-pedidos input,
+.pedido-card:not(.edit-mode) .table-pedidos select {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding-left: 0;
+    -webkit-appearance: none;
+    appearance: none;
+    color: inherit;
+    font-weight: 500;
+    cursor: default;
+    border-radius: 0;
+}
+
+/* --- SECCIONES INTERNAS Y TABLAS --- */
+.observaciones-lista {
+    font-style: italic;
+    background-color: #f8f9fa;
+    border-left: 4px solid #adb5bd;
+    padding: 10px;
+    margin: 1.5rem 0;
+}
+
+.section-title {
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: .85rem;
+    margin-top: 1.5rem;
+    margin-bottom: 1rem;
+    padding-bottom: .5rem;
+    border-bottom: 2px solid #eee;
+}
+
+.table-pedidos {
+    width: 100%;
+    table-layout: fixed;
+    font-size: .9rem;
+}
+
+.table-pedidos th {
+    font-weight: 600;
+    color: #6c757d;
+    text-align: left;
+    padding: .5rem;
+    border-bottom: 2px solid #dee2e6;
+}
+
+.table-pedidos td {
+    padding: .6rem .5rem;
+    border-bottom: 1px solid #eee;
+    vertical-align: middle;
+    font-weight: 500;
+    word-break: break-word;
+}
+
+/* Reemplaza la regla existente por esta */
+.table-pedidos input:disabled, .table-pedidos select:disabled {
+    background: transparent;
+    border: none;
+    padding-left: 0;
+    -webkit-appearance: none;
+    appearance: none;
+    box-shadow: none;
+    color: inherit;
+    font-weight: 500;
+    cursor: default;
+}
+
+/* Reemplaza la regla .totales existente por esta versión con flex-direction: row */
+.totales {
+    display: flex;
+    flex-direction: row; /* <-- SOLUCIÓN: Alinea los elementos en una fila */
+    justify-content: space-between; /* <-- Distribuye el espacio entre ellos */
+    align-items: center;
+    margin-top: 1rem;
+    padding: 1rem;
+    border-top: 1px solid #eee;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+}
+
+.totales p {
+    margin: 0;
+    font-size: 1.1rem;
+}
+
+.totales strong {
+    color: #6c757d;
+    font-weight: 600;
+    font-size: .9rem;
+}
+
+.totales .total-debe {
+    font-size: 1.25rem;
+    font-weight: 700;
+}
+
+.acciones {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .75rem;
+    justify-content: flex-start;
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #dee2e6;
+}
+
+.ultima-modif {
+    text-align: right;
+    font-style: italic;
+    margin-top: 1rem;
+    font-size: .8rem;
+    color: #6c757d;
+}
+
+.factura-indicator { 
+    position: absolute; 
+    top: -5px; 
+    right: -5px; 
+    font-size: 1rem; 
+    color: #198754; 
+    background-color: white; 
+    border-radius: 50%; 
+}
+
+/* Agrega estas nuevas reglas al final del archivo */
+.tabla-productos .col-proveedor { width: 15%; }
+.tabla-productos .col-producto { width: 35%; }
+.tabla-productos .col-sku { width: 15%; }
+.tabla-productos .col-precio { width: 12%; }
+.tabla-productos .col-cant { width: 8%; }
+.tabla-productos .col-estado { width: 10%; }
+
+/* Agrega estas reglas al final del archivo */
+
+/* SOLUCIÓN: Hace que los inputs en modo edición se vean como campos editables */
+.pedido-card.edit-mode .table-pedidos input,
+.pedido-card.edit-mode .table-pedidos select {
+    background-color: #fff !important;
+    border: 1px solid #ced4da !important;
+    -webkit-appearance: listbox !important; /* Restaura apariencia de select */
+    appearance: listbox !important;
+    padding-left: .5rem !important; /* Añade un poco de padding */
+}
+
+/* SOLUCIÓN: Ajustes de espaciado para un diseño más compacto */
+.pedido-body {
+    padding: 1rem 1.25rem; /* Reduce el padding general del cuerpo de la tarjeta */
+}
+
+.info-item {
+    margin-bottom: .5rem; /* Reduce el espacio entre los items de información */
+}
+
+.section-title {
+    margin-top: 1rem; /* Reduce el margen superior de los títulos de sección */
+    margin-bottom: .75rem;
+}
+
+.acciones {
+    margin-top: 1rem; /* Reduce el espacio sobre la barra de acciones */
+    padding-top: 1rem;
 }

@@ -170,15 +170,15 @@
       <table>
         <tr>
           <td><strong>Subtotal</strong></td>
-          <td>${{ total_final | formato_arg }}</td>
+          <td>{{ total_final | formato_arg }}</td>
         </tr>
         <tr>
           <td><strong>Total Presupuesto</strong></td>
-          <td><strong>${{ total_final | formato_arg }}</strong></td>
+          <td><strong>{{ total_final | formato_arg }}</strong></td>
         </tr>
         <tr>
           <td><strong>Crédito 1 pago</strong></td>
-          <td><strong> ${{ (total_final * 1.136) | formato_arg }}</strong></td>
+          <td><strong> {{ (total_final * 1.136) | formato_arg }}</strong></td>
         </tr>
       </table>
     </div>

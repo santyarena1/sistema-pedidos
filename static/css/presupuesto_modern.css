@@ -1,0 +1,92 @@
+/* static/css/presupuesto_modern.css */
+
+.form-section-title {
+    font-weight: 600;
+    color: var(--text-header);
+    margin-top: 1.5rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+/* Ancho completo para el contenido principal */
+#main-content {
+    width: 100%;
+}
+
+/* Estilos para la búsqueda con autocompletado */
+.search-results-list {
+    display: none;
+    position: absolute;
+    background-color: white;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    width: 100%;
+    max-height: 250px;
+    overflow-y: auto;
+    z-index: 1000;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.result-item {
+    padding: 0.75rem 1rem;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.result-item:last-child {
+    border-bottom: none;
+}
+
+.result-item:hover {
+    background-color: #f8f9fa;
+}
+
+/* Estilos para la tabla de ítems */
+#tabla-items-presupuesto .form-control,
+#tabla-items-presupuesto .form-select {
+    min-width: 80px;
+    text-align: right;
+    font-size: 0.9rem;
+    height: auto;
+    padding: 0.3rem 0.5rem;
+}
+#tabla-items-presupuesto .form-select {
+    text-align: center;
+}
+
+#tabla-items-presupuesto .precio-venta,
+#tabla-items-presupuesto .subtotal-item {
+    font-weight: 500;
+    text-align: right;
+}
+
+/* Contenedor de Resumen de Totales */
+.resumen-totales {
+    text-align: right;
+}
+.resumen-totales p {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+.resumen-totales h4 {
+    margin: 0.25rem 0 0 0;
+    color: var(--text-header);
+}
+
+/* Tarjetas de Historial */
+.historial-card .card-header {
+    background-color: #f8f9fa;
+    cursor: pointer;
+}
+.historial-card .card-body, .historial-card .card-footer {
+    background-color: #ffffff;
+}
+
+.historial-card .card-header i {
+    transition: transform 0.2s ease-in-out;
+}
+.historial-card .card-header[aria-expanded="true"] i {
+    transform: rotate(180deg);
+}

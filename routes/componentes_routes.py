@@ -28,15 +28,17 @@ def obtener_componentes():
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
             if query_param:
+                # CORRECCIÓN: Se añaden 'precio_costo' y 'mark_up' a la consulta de búsqueda.
+                # Esto asegura que los componentes sugeridos tengan toda la data necesaria.
                 sql = """
-                    SELECT c.id, c.codigo, c.producto, c.categoria, c.precio_venta
+                    SELECT c.id, c.codigo, c.producto, c.categoria, c.precio_venta, c.precio_costo, c.mark_up
                     FROM componentes_presupuesto c
                     WHERE LOWER(c.producto) LIKE %s OR LOWER(c.codigo) LIKE %s
                     LIMIT 10;
                 """
                 cur.execute(sql, (f"%{query_param}%", f"%{query_param}%"))
             else:
-                # [CORREGIDO] Se arregló el error de tipeo "etaqueta_id" por "etiqueta_id"
+                # Esta consulta para la vista principal de componentes ya era correcta.
                 sql = """
                     SELECT c.id, c.codigo, c.categoria, c.producto, c.precio_costo, c.mark_up, c.precio_venta, c.ultima_modificacion,
                         ARRAY_REMOVE(ARRAY_AGG(e.nombre ORDER BY e.nombre), NULL) AS etiquetas
@@ -244,5 +246,42 @@ def eliminar_etiqueta():
     except Exception as e:
         if conn: conn.rollback()
         return jsonify({"error": str(e)}), 500
+    finally:
+        if conn: conn.close()
+
+# Agregar en: routes/componentes_routes.py
+
+@componentes_bp.route("/api/componentes/generar-codigo")
+def generar_codigo_componente():
+    """Genera un nuevo código único para un componente basado en su categoría."""
+    categoria = request.args.get("categoria", "")
+    if not categoria:
+        return jsonify({"codigo": ""})
+
+    prefijo = categoria[:3].upper()
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT codigo FROM componentes_presupuesto WHERE codigo LIKE %s 
+                ORDER BY codigo DESC LIMIT 1
+            """, (f"{prefijo}%",))
+            
+            ultimo_codigo = cur.fetchone()
+            if ultimo_codigo:
+                # Extrae la parte numérica del último código y le suma 1
+                ultimo_num = int(ultimo_codigo[0].replace(prefijo, ''))
+                nuevo_num = ultimo_num + 1
+            else:
+                # Si no hay ninguno, empieza en 1
+                nuevo_num = 1
+            
+            # Formatea el nuevo número con ceros a la izquierda
+            nuevo_codigo = f"{prefijo}{str(nuevo_num).zfill(3)}"
+            
+        return jsonify({"codigo": nuevo_codigo})
+    except Exception as e:
+        print(e)
+        return jsonify({"error": "No se pudo generar el código"}), 500
     finally:
         if conn: conn.close()

@@ -1,0 +1,55 @@
+/* --- Contenido para: static/css/main.css --- */
+
+#sidebar {
+    display: flex;                /* Activa el layout de Flexbox */
+    flex-direction: column;       /* Apila los elementos (menú y footer) verticalmente */
+    height: 100vh;                /* Ocupa el 100% de la altura de la pantalla */
+    position: sticky;             /* Se queda fijo en su lugar al hacer scroll */
+    top: 0;
+    width: 280px;                 /* Ancho fijo para el sidebar */
+    background-color: #212529;    /* Un color de fondo oscuro, puedes cambiarlo */
+}
+
+/* Este es el contenedor del logo y el menú de navegación */
+.sidebar-menu {
+    flex-grow: 1; /* Le dice a este contenedor que ocupe todo el espacio vertical disponible, empujando el footer hacia abajo */
+}
+
+/* Este es el contenedor de los valores del dólar */
+.sidebar-footer {
+    flex-shrink: 0; /* Evita que el footer se encoja si el contenido es muy grande */
+}
+
+/* --- Estilos adicionales para mejorar la estética de los enlaces --- */
+
+#sidebar .nav-link {
+    color: rgba(255, 255, 255, 0.75); /* Texto de los enlaces un poco opaco */
+    padding: 0.7rem 1.2rem;
+    border-radius: 5px;
+    margin: 0 0.5rem;
+    transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out;
+}
+
+#sidebar .nav-link:hover {
+    color: #fff; /* Texto blanco al pasar el mouse */
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Estilo para el enlace de la página activa */
+#sidebar .nav-link.active {
+    color: #fff;
+    font-weight: 500;
+    background-color: #c0392b; /* Color rojo de tu marca */
+}
+
+/* Estilos para los sub-items del menú */
+#sidebar .collapse .nav-link {
+    font-size: 0.9em;
+    padding-left: 2rem; /* Indentación para los sub-items */
+    color: rgba(255, 255, 255, 0.6);
+}
+
+#sidebar .collapse .nav-link.active {
+    color: #fff;
+    background-color: transparent; /* El sub-item activo no necesita fondo */
+}
