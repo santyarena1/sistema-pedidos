@@ -73,7 +73,10 @@ def obtener_presupuestos():
 
 @presupuesto_bp.route("/api/presupuestos/<int:presupuesto_id>", methods=["GET"])
 def obtener_presupuesto_detalle(presupuesto_id):
-    """Obtiene los detalles completos de un presupuesto, incluyendo sus ítems."""
+    """
+    Obtiene los detalles completos de un presupuesto, incluyendo sus ítems
+    ordenados y con la nueva información de visibilidad.
+    """
     conn = None
     try:
         conn = get_db_connection()
@@ -85,15 +88,18 @@ def obtener_presupuesto_detalle(presupuesto_id):
             
             presupuesto = dict(presupuesto)
             
-            # --- CORRECCIÓN CLAVE ---
-            # Se formatea explícitamente la fecha a un string 'YYYY-MM-DD'.
-            # Esto evita problemas de zona horaria o formato en el frontend.
             if presupuesto.get('fecha_emision'):
-                presupuesto['fecha_emision'] = presupuesto['fecha_emision'].isoformat()
+                # Cortamos la fecha para evitar problemas de zona horaria en el front
+                presupuesto['fecha_emision'] = presupuesto['fecha_emision'].isoformat().split('T')[0]
             if presupuesto.get('fecha_validez'):
-                presupuesto['fecha_validez'] = presupuesto['fecha_validez'].isoformat()
+                presupuesto['fecha_validez'] = presupuesto['fecha_validez'].isoformat().split('T')[0]
             
-            cur.execute("SELECT * FROM items_presupuesto WHERE presupuesto_id = %s ORDER BY id ASC", (presupuesto_id,))
+            # Se ordena por la columna 'orden' para respetar el reordenamiento manual
+            cur.execute("""
+                SELECT * FROM items_presupuesto 
+                WHERE presupuesto_id = %s 
+                ORDER BY orden ASC, id ASC
+            """, (presupuesto_id,))
             presupuesto['items'] = [dict(row) for row in cur.fetchall()]
         return jsonify(presupuesto)
     except Exception as e:
@@ -103,39 +109,54 @@ def obtener_presupuesto_detalle(presupuesto_id):
 
 # REEMPLAZAR EN: routes/presupuesto_routes.py
 
+# REEMPLAZA ESTA FUNCIÓN EN: routes/presupuesto_routes.py
+
 @presupuesto_bp.route("/api/presupuestos", methods=["POST"])
 def crear_presupuesto():
-    """Crea un nuevo presupuesto y sus ítems."""
+    """Crea un nuevo presupuesto, sus ítems y respeta el orden y visibilidad."""
     data = request.get_json()
     conn = None
     try:
         conn = get_db_connection()
         with conn.cursor() as cur:
+            # Se calcula el total en el backend para seguridad
+            total_calculado = sum(
+                (float(item.get('precio_venta', 0)) * int(item.get('cantidad', 1)))
+                for item in data.get("items", [])
+            )
+            descuento = float(data.get('descuento', 0))
+            total_final = total_calculado - descuento
+
             cur.execute("""
                 INSERT INTO presupuestos (cliente, fecha_emision, fecha_validez, total_final, descuento)
                 VALUES (%s, %s, %s, %s, %s) RETURNING id
             """, (
                 data.get('cliente'), data.get('fecha_emision'), data.get('fecha_validez'),
-                data.get('total_final', 0), data.get('descuento', 0)
+                total_final, descuento
             ))
             presupuesto_id = cur.fetchone()[0]
 
             items_a_insertar = []
-            for item in data.get("items", []):
+            for index, item in enumerate(data.get("items", [])):
                 # ▼▼▼ CORRECCIÓN CLAVE ▼▼▼
-                # Se convierte el nombre del producto a mayúsculas.
-                producto_mayusculas = item.get('producto', '').upper()
-                
+                # Ahora la tupla que se inserta incluye los valores para 'orden' y 'visible_en_pdf'
                 items_a_insertar.append((
-                    presupuesto_id, producto_mayusculas,
-                    item.get('cantidad', 1), item.get('precio', 0),
-                    item.get('precio_venta', 0), item.get('iva', 21)
+                    presupuesto_id,
+                    item.get('producto', '').upper(),
+                    item.get('cantidad', 1),
+                    item.get('precio', 0), # Costo
+                    item.get('precio_venta', 0),
+                    item.get('iva', 21),
+                    index,  # orden
+                    item.get('visible_en_pdf', True) # visible_en_pdf
                 ))
             
-            psycopg2.extras.execute_batch(cur, """
-                INSERT INTO items_presupuesto (presupuesto_id, producto, cantidad, precio, precio_venta, iva)
-                VALUES (%s, %s, %s, %s, %s, %s)
-            """, items_a_insertar)
+            if items_a_insertar:
+                # La consulta INSERT ahora especifica las 8 columnas correctamente
+                psycopg2.extras.execute_batch(cur, """
+                    INSERT INTO items_presupuesto (presupuesto_id, producto, cantidad, precio, precio_venta, iva, orden, visible_en_pdf)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                """, items_a_insertar)
             
             conn.commit()
         return jsonify({"mensaje": "Presupuesto creado con éxito", "id": presupuesto_id}), 201
@@ -144,43 +165,83 @@ def crear_presupuesto():
         return jsonify({"error": str(e)}), 500
     finally:
         if conn: conn.close()
-
-# REEMPLAZAR EN: routes/presupuesto_routes.py
+# REEMPLAZA ESTA FUNCIÓN EN: routes/presupuesto_routes.py
 
 @presupuesto_bp.route("/api/presupuestos/<int:presupuesto_id>", methods=["PUT"])
 def actualizar_presupuesto(presupuesto_id):
-    """Actualiza un presupuesto existente y sus ítems."""
+    """Actualiza de forma inteligente un presupuesto, sus ítems y recalcula el total."""
     data = request.get_json()
     conn = None
     try:
         conn = get_db_connection()
-        with conn.cursor() as cur:
+        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            # Obtiene los IDs de los ítems que ya existen en la BD para este presupuesto
+            cur.execute("SELECT id FROM items_presupuesto WHERE presupuesto_id = %s", (presupuesto_id,))
+            items_actuales_db_ids = {row['id'] for row in cur.fetchall()}
+
+            total_calculado = 0
+            items_recibidos_con_id = set()
+            items_a_actualizar = []
+            items_a_insertar = []
+
+            for index, item in enumerate(data.get("items", [])):
+                total_calculado += float(item.get('precio_venta', 0)) * int(item.get('cantidad', 1))
+
+                item_id = item.get('id')
+                if item_id:
+                    # Preparar datos para ítems existentes (UPDATE)
+                    item_data_tuple_update = (
+                        item.get('producto', '').upper(), item.get('cantidad', 1),
+                        item.get('precio', 0), item.get('precio_venta', 0), item.get('iva', 21),
+                        index, item.get('visible_en_pdf', True), presupuesto_id, int(item_id)
+                    )
+                    items_a_actualizar.append(item_data_tuple_update)
+                    items_recibidos_con_id.add(int(item_id))
+                else:
+                    # ▼▼▼ CORRECCIÓN CLAVE ▼▼▼
+                    # Preparar datos para ítems nuevos (INSERT). El orden de los elementos ahora es correcto.
+                    item_data_tuple_insert = (
+                        presupuesto_id,  # El presupuesto_id ahora está al principio
+                        item.get('producto', '').upper(),
+                        item.get('cantidad', 1),
+                        item.get('precio', 0),
+                        item.get('precio_venta', 0),
+                        item.get('iva', 21),
+                        index,
+                        item.get('visible_en_pdf', True)
+                    )
+                    items_a_insertar.append(item_data_tuple_insert)
+
+            descuento = float(data.get('descuento', 0))
+            total_final = total_calculado - descuento
+            items_a_eliminar_ids = items_actuales_db_ids - items_recibidos_con_id
+
+            # Actualiza el presupuesto principal
             cur.execute("""
                 UPDATE presupuestos SET cliente=%s, fecha_emision=%s, fecha_validez=%s,
                 total_final=%s, descuento=%s, ultima_modificacion=NOW() WHERE id=%s
             """, (
                 data.get('cliente'), data.get('fecha_emision'), data.get('fecha_validez'),
-                data.get('total_final', 0), data.get('descuento', 0), presupuesto_id
+                total_final, descuento, presupuesto_id
             ))
-            
-            cur.execute("DELETE FROM items_presupuesto WHERE presupuesto_id=%s", (presupuesto_id,))
-            items_a_insertar = []
-            for item in data.get("items", []):
-                # ▼▼▼ CORRECCIÓN CLAVE ▼▼▼
-                # Se convierte el nombre del producto a mayúsculas.
-                producto_mayusculas = item.get('producto', '').upper()
 
-                items_a_insertar.append((
-                    presupuesto_id, producto_mayusculas,
-                    item.get('cantidad', 1), item.get('precio', 0),
-                    item.get('precio_venta', 0), item.get('iva', 21)
-                ))
-
+            # Inserta los ítems nuevos
             if items_a_insertar:
-                 psycopg2.extras.execute_batch(cur, """
-                    INSERT INTO items_presupuesto (presupuesto_id, producto, cantidad, precio, precio_venta, iva)
-                    VALUES (%s, %s, %s, %s, %s, %s)
+                psycopg2.extras.execute_batch(cur, """
+                    INSERT INTO items_presupuesto (presupuesto_id, producto, cantidad, precio, precio_venta, iva, orden, visible_en_pdf)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 """, items_a_insertar)
+            
+            # Actualiza los ítems existentes
+            if items_a_actualizar:
+                psycopg2.extras.execute_batch(cur, """
+                    UPDATE items_presupuesto SET producto=%s, cantidad=%s, precio=%s, precio_venta=%s, iva=%s, orden=%s, visible_en_pdf=%s
+                    WHERE presupuesto_id=%s AND id=%s
+                """, items_a_actualizar)
+            
+            # Elimina los ítems que se quitaron
+            if items_a_eliminar_ids:
+                psycopg2.extras.execute_batch(cur, "DELETE FROM items_presupuesto WHERE id = %s", [(id,) for id in items_a_eliminar_ids])
 
             conn.commit()
         return jsonify({"mensaje": "Presupuesto actualizado con éxito"})
@@ -189,6 +250,7 @@ def actualizar_presupuesto(presupuesto_id):
         return jsonify({"error": str(e)}), 500
     finally:
         if conn: conn.close()
+
 
 
 @presupuesto_bp.route("/api/presupuestos/<int:presupuesto_id>", methods=["DELETE"])
@@ -209,6 +271,9 @@ def eliminar_presupuesto(presupuesto_id):
 
 @presupuesto_bp.route("/presupuestos/pdf/<int:presupuesto_id>")
 def generar_pdf_estilizado(presupuesto_id):
+    """
+    Genera el PDF profesional, respetando la visibilidad y el orden de los ítems.
+    """
     conn = None
     try:
         conn = get_db_connection()
@@ -217,22 +282,27 @@ def generar_pdf_estilizado(presupuesto_id):
             presupuesto = cur.fetchone()
             if not presupuesto: return "Presupuesto no encontrado", 404
             
-            cur.execute("SELECT * FROM items_presupuesto WHERE presupuesto_id = %s", (presupuesto_id,))
+            # La consulta ahora filtra los ítems no visibles y respeta el orden
+            cur.execute("""
+                SELECT * FROM items_presupuesto 
+                WHERE presupuesto_id = %s AND visible_en_pdf = TRUE 
+                ORDER BY orden ASC, id ASC
+            """, (presupuesto_id,))
             items = cur.fetchall()
 
         env = Environment(loader=FileSystemLoader("templates/"))
         env.filters['formato_arg'] = formato_arg
         template = env.get_template("plantilla_presupuesto.html")
         
-        # CORRECCIÓN: Se convierte 'total_final' a float antes de pasarlo a la plantilla.
-        # Esto asegura que la multiplicación (ej. total_final * 1.136) funcione correctamente.
         html = template.render(
             id=presupuesto['id'],
             cliente=presupuesto['cliente'],
             fecha_emision=presupuesto['fecha_emision'].strftime('%d/%m/%Y'),
             fecha_validez=presupuesto['fecha_validez'].strftime('%d/%m/%Y'),
             items=items,
-            total_final=float(presupuesto['total_final'])
+            # El total ya está correctamente calculado en la tabla de presupuestos
+            total_final=float(presupuesto['total_final']),
+            descuento=float(presupuesto['descuento'])
         )
         pdf = HTML(string=html, base_url="static/").write_pdf()
         return send_file(io.BytesIO(pdf), mimetype="application/pdf", as_attachment=False,
@@ -241,6 +311,7 @@ def generar_pdf_estilizado(presupuesto_id):
         return str(e), 500
     finally:
         if conn: conn.close()
+
 
 @presupuesto_bp.route("/presupuestos/pdf_simple/<int:presupuesto_id>")
 def generar_pdf_simple(presupuesto_id):

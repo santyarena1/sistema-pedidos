@@ -6,14 +6,11 @@ document.addEventListener("DOMContentLoaded", () => {
   inicializarPagina();
 });
 
-// REEMPLAZAR EN: static/js/presupuesto.js
-
-// REEMPLAZAR EN: static/js/presupuesto.js
-
+// REEMPLAZA ESTA FUNCIÓN EN: static/js/presupuesto.js
 function inicializarPagina() {
   limpiarFormulario();
-  cargarHistorial(); // Carga el historial completo al iniciar
-  
+  cargarHistorial();
+
   // Listener para la barra de búsqueda de componentes
   let searchDebounce;
   document.getElementById('producto-search').addEventListener('input', (e) => {
@@ -22,8 +19,8 @@ function inicializarPagina() {
           buscarComponentesSugeridos(e.target.value);
       }, 300);
   });
-  
-  // Listener para el input de nombre en el modal de creación
+
+  // Listener para el input de nombre en el modal de creación (SE MANTIENE)
   let modalDebounce;
   document.getElementById('nuevo-componente-nombre').addEventListener('input', (e) => {
       clearTimeout(modalDebounce);
@@ -32,17 +29,25 @@ function inicializarPagina() {
       }, 300);
   });
 
-  // Listener para el campo de descuento
   document.getElementById('descuento').addEventListener('input', actualizarTotales);
 
-  // NUEVO Listener para el buscador del historial
+  // Listener para el buscador del historial
   let historialDebounce;
   document.getElementById('historial-search').addEventListener('input', (e) => {
       clearTimeout(historialDebounce);
       historialDebounce = setTimeout(() => {
-          cargarHistorial(e.target.value); // Llama a cargarHistorial con el término de búsqueda
-      }, 400); // Espera 400ms antes de buscar
+          cargarHistorial(e.target.value);
+      }, 400);
   });
+
+  // INICIALIZACIÓN DE SORTABLEJS (CORRECCIÓN)
+  const tbody = document.getElementById('tabla-items-presupuesto');
+  if (tbody) {
+      new Sortable(tbody, {
+          handle: '.drag-handle', // Clase del ícono que usaremos para arrastrar
+          animation: 150,
+      });
+  }
 }
 
 async function buscarComponenteInterno(query) {
@@ -264,35 +269,57 @@ async function crearYAgregarComponente() {
 
 // --- LÓGICA DE LA TABLA DE ÍTEMS ---
 
-function seleccionarProducto(p) {
-  const tbody = document.getElementById('tabla-items-presupuesto');
-  const newRow = document.createElement('tr');
-  
-  // CORRECCIÓN: Busca el precio de costo en 'p.precio' (para búsquedas externas)
-  // o en 'p.precio_costo' (para componentes internos).
-  const precioCosto = parsearMoneda(p.precio || p.precio_costo || 0);
-  const markup = p.mark_up || 1.3;
-  const precioVenta = precioCosto * markup;
-  const iva = p.iva !== undefined ? p.iva : 21;
+// REEMPLAZA ESTA FUNCIÓN EN: static/js/presupuesto.js
 
-  newRow.innerHTML = `
-      <td data-field="producto">${p.producto}<small class="text-muted d-block">${p.codigo || 'EXTERNO'}</small></td>
-      <td><input type="number" class="form-control form-control-sm" value="1" data-field="cantidad" oninput="actualizarTotales()"></td>
-      <td><input type="text" class="form-control form-control-sm" value="${formatoArgentino(precioCosto)}" data-field="precio_costo" oninput="actualizarTotales()"></td>
-      <td><input type="text" class="form-control form-control-sm" value="${markup.toString().replace('.',',')}" data-field="mark_up" oninput="actualizarTotales()"></td>
-      <td><select class="form-select form-select-sm" data-field="iva"><option value="21" ${iva == 21 ? 'selected' : ''}>21%</option><option value="10.5" ${iva == 10.5 ? 'selected' : ''}>10.5%</option><option value="0" ${iva == 0 ? 'selected' : ''}>0%</option></select></td>
-      <td class="precio-venta" data-field="precio_venta">${formatoArgentino(precioVenta)}</td>
-      <td class="subtotal-item fw-bold"></td>
-      <td><button class="btn btn-sm btn-outline-danger" onclick="this.closest('tr').remove(); actualizarTotales();"><i class="fas fa-trash-alt"></i></button></td>
+function seleccionarProducto(p) {
+  const iva = parseFloat(document.getElementById('nuevo-componente-iva')?.value || p.iva || 21);
+  const costo = parsearMoneda(p.precio_costo || p.precio || 0);
+  const markup = parseFloat(p.mark_up || 1.3);
+  const precioVenta = costo * markup * (1 + (iva / 100)); // Se incluye el IVA en el cálculo inicial
+
+  const fila = document.createElement('tr');
+  fila.dataset.itemId = p.id || '';
+  fila.dataset.productoNombre = p.producto;
+
+  fila.innerHTML = `
+      <td class="text-center align-middle drag-handle" title="Arrastrar para reordenar"><i class="fas fa-bars"></i></td>
+      <td>
+          <span>${p.producto}</span>
+          <small class="text-muted d-block">${p.codigo || 'Ítem Temporal'}</small>
+      </td>
+      <td><input type="number" class="form-control form-control-sm text-center" value="1" data-field="cantidad" oninput="actualizarTotales()"></td>
+      <td><input type="text" class="form-control form-control-sm text-end" value="${formatoArgentino(costo)}" data-field="precio_costo" oninput="actualizarTotales()"></td>
+      <td><input type="text" class="form-control form-control-sm text-center" value="${markup.toFixed(2).replace('.',',')}" data-field="mark_up" oninput="actualizarTotales()"></td>
+      <td>
+          <select class="form-select form-select-sm" data-field="iva" oninput="actualizarTotales()">
+              <option value="21" ${iva == 21 ? 'selected' : ''}>21%</option>
+              <option value="10.5" ${iva == 10.5 ? 'selected' : ''}>10.5%</option>
+              <option value="0" ${iva == 0 ? 'selected' : ''}>0%</option>
+          </select>
+      </td>
+      <td class="precio-venta text-end align-middle fw-bold">${formatoArgentino(precioVenta)}</td>
+      <td class="subtotal-item fw-bold text-end align-middle"></td>
+      
+      <td class="text-center align-middle">
+          <button class="btn btn-sm" onclick="toggleVisibilidad(this.closest('tr'))" title="Ocultar/Mostrar en PDF"><i class="fas fa-eye"></i></button>
+          <button class="btn btn-sm text-danger" onclick="this.closest('tr').remove(); actualizarTotales();" title="Eliminar ítem"><i class="fas fa-trash-alt"></i></button>
+      </td>
   `;
-  
-  tbody.appendChild(newRow);
-  const modalBusqueda = bootstrap.Modal.getInstance(document.getElementById("modalBusquedaExterna"));
-  if(modalBusqueda) modalBusqueda.hide();
-  
+
+  document.getElementById('tabla-items-presupuesto').appendChild(fila);
   actualizarTotales();
+
+  const modalBusqueda = bootstrap.Modal.getInstance(document.getElementById("modalBusquedaExterna"));
+  if (modalBusqueda) {
+    // Asegurarse de que el modal exista antes de intentar ocultarlo
+    const modalElement = document.getElementById("modalBusquedaExterna");
+    if (modalElement.classList.contains('show')) {
+        modalBusqueda.hide();
+    }
+  }
 }
 
+// REEMPLAZA ESTA FUNCIÓN EN: static/js/presupuesto.js
 function actualizarTotales() {
   let subtotalGeneral = 0;
   document.querySelectorAll("#tabla-items-presupuesto tr").forEach(fila => {
@@ -300,7 +327,11 @@ function actualizarTotales() {
       const precioCosto = parsearMoneda(fila.querySelector('[data-field="precio_costo"]').value);
       const markup = parseFloat(fila.querySelector('[data-field="mark_up"]').value.replace(',', '.')) || 1.0;
       
-      const precioVenta = precioCosto * markup;
+      // CORRECCIÓN: El precio de venta ahora incluye el IVA en su cálculo
+      const ivaPorc = parseFloat(fila.querySelector('[data-field="iva"]')?.value || 21) / 100;
+      const precioConMarkup = precioCosto * markup;
+      const precioVenta = precioConMarkup * (1 + ivaPorc);
+      
       const subtotalItem = cantidad * precioVenta;
       subtotalGeneral += subtotalItem;
 
@@ -308,8 +339,7 @@ function actualizarTotales() {
       fila.querySelector('.subtotal-item').textContent = formatoArgentino(subtotalItem);
   });
 
-  const descuentoPorc = parseFloat(document.getElementById('descuento').value) || 0;
-  const descuentoValor = subtotalGeneral * (descuentoPorc / 100);
+  const descuentoValor = parseFloat(document.getElementById('descuento').value) || 0;
   const totalFinal = subtotalGeneral - descuentoValor;
 
   document.getElementById('subtotal-valor').textContent = formatoArgentino(subtotalGeneral);
@@ -319,31 +349,38 @@ function actualizarTotales() {
 
 // --- FUNCIONES CRUD (API) Y DE HISTORIAL ---
 
-// REEMPLAZAR EN: static/js/presupuesto.js
-
-// REEMPLAZAR EN: static/js/presupuesto.js
-
+// REEMPLAZA ESTA FUNCIÓN EN: static/js/presupuesto.js
 async function guardarPresupuesto() {
   const presupuestoId = document.getElementById('presupuestoId').value;
   const esEdicion = !!presupuestoId;
   
-  const items = Array.from(document.getElementById('tabla-items-presupuesto').rows).map(fila => ({
-      // ▼▼▼ CORRECCIÓN CLAVE ▼▼▼
-      producto: fila.cells[0].childNodes[0].nodeValue.trim().toUpperCase(),
-      cantidad: parseInt(fila.querySelector('[data-field="cantidad"]').value),
-      precio: parsearMoneda(fila.querySelector('[data-field="precio_costo"]').value),
-      iva: parseFloat(fila.querySelector('[data-field="iva"]').value),
-      precio_venta: parsearMoneda(fila.querySelector('[data-field="precio_venta"]').textContent),
-  }));
-
   const body = {
       cliente: document.getElementById('cliente').value,
       fecha_emision: document.getElementById('fecha_emision').value,
       fecha_validez: document.getElementById('fecha_validez').value,
       descuento: parseFloat(document.getElementById('descuento').value) || 0,
-      total_final: parsearMoneda(document.getElementById('total-valor').textContent),
-      items: items,
+      items: []
   };
+
+  document.querySelectorAll("#tabla-items-presupuesto tr").forEach(fila => {
+      // CORRECCIÓN: Ahora el querySelector encontrará el campo de IVA
+      const ivaField = fila.querySelector('[data-field="iva"]');
+      
+      body.items.push({
+          id: fila.dataset.itemId ? parseInt(fila.dataset.itemId) : null,
+          producto: fila.dataset.productoNombre,
+          cantidad: parseInt(fila.querySelector('[data-field="cantidad"]').value),
+          precio: parsearMoneda(fila.querySelector('[data-field="precio_costo"]').value),
+          // Aseguramos que la lectura del IVA sea segura
+          iva: ivaField ? parseFloat(ivaField.value) : 21, 
+          precio_venta: parsearMoneda(fila.querySelector('.precio-venta').textContent),
+          visible_en_pdf: !fila.classList.contains('item-oculto')
+      });
+  });
+
+  if (body.items.length === 0) {
+      return alert("No se puede guardar un presupuesto sin ítems.");
+  }
 
   const url = esEdicion ? `/api/presupuestos/${presupuestoId}` : '/api/presupuestos';
   const method = esEdicion ? 'PUT' : 'POST';
@@ -351,12 +388,14 @@ async function guardarPresupuesto() {
   try {
       const response = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Error al guardar.');
+      if (!response.ok) throw new Error(data.error || 'Error desconocido al guardar.');
+      
       alert(`✅ ${data.mensaje}`);
       limpiarFormulario();
       cargarHistorial();
   } catch (error) {
-      alert(`❌ Error: ${error.message}`);
+      console.error("Error al guardar:", error);
+      alert(`❌ Error al guardar: ${error.message}`);
   }
 }
 
@@ -454,46 +493,75 @@ async function cargarDetalle(id) {
   }
 }
 
+// REEMPLAZA ESTA FUNCIÓN EN: static/js/presupuesto.js
+
 async function cargarParaEditar(id) {
   try {
       const response = await fetch(`/api/presupuestos/${id}`);
       const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Error al cargar el presupuesto.');
+
+      // 1. Limpia el formulario y la tabla antes de llenarlos
+      limpiarFormulario();
       
+      // 2. Rellena los datos principales del presupuesto
       document.getElementById('presupuestoId').value = data.id;
       document.getElementById('cliente').value = data.cliente;
-      // La corrección del backend se encarga de que esto funcione siempre.
-      document.getElementById('fecha_emision').value = data.fecha_emision.split('T')[0];
-      document.getElementById('fecha_validez').value = data.fecha_validez.split('T')[0];
+      document.getElementById('fecha_emision').value = data.fecha_emision;
+      document.getElementById('fecha_validez').value = data.fecha_validez;
       document.getElementById('descuento').value = data.descuento || 0;
-      
+
       const tbody = document.getElementById('tabla-items-presupuesto');
-      tbody.innerHTML = '';
+      tbody.innerHTML = ''; // Asegura que la tabla esté vacía
+
+      // 3. (LA SOLUCIÓN) Itera sobre los ítems y construye cada fila CORRECTAMENTE
       data.items.forEach(item => {
-           const itemParaTabla = {
-               producto: item.producto,
-               codigo: item.codigo,
-               // --- CORRECCIÓN CLAVE ---
-               // Se lee la propiedad 'precio' que viene de la base de datos,
-               // en lugar de 'precio_costo' que no existía.
-               precio: item.precio,
-               iva: item.iva,
-               mark_up: item.mark_up
-           };
-           seleccionarProducto(itemParaTabla);
-           const ultimaFila = tbody.lastChild;
-           ultimaFila.querySelector('[data-field="cantidad"]').value = item.cantidad;
-           ultimaFila.querySelector('[data-field="mark_up"]').value = (item.mark_up || 1.3).toString().replace('.',',');
+          const fila = document.createElement('tr');
+          // Guardamos los datos importantes en el dataset de la fila
+          fila.dataset.itemId = item.id || '';
+          fila.dataset.productoNombre = item.producto;
+          fila.classList.toggle('item-oculto', !item.visible_en_pdf);
+
+          const markup = (item.precio > 0 && item.precio_venta > 0 ? item.precio_venta / item.precio : (item.mark_up || 1.3)).toFixed(2).replace('.', ',');
+          const iva = item.iva || 21; // Proporciona un valor por defecto para el IVA si no existe
+
+          // Construye el HTML de la fila completa con sus 9 columnas
+          fila.innerHTML = `
+              <td class="text-center align-middle drag-handle" title="Arrastrar para reordenar"><i class="fas fa-bars"></i></td>
+              <td>
+                  <span>${item.producto}</span>
+                  <small class="text-muted d-block">${item.codigo || 'Ítem Temporal'}</small>
+              </td>
+              <td><input type="number" class="form-control form-control-sm text-center" value="${item.cantidad}" data-field="cantidad" oninput="actualizarTotales()"></td>
+              <td><input type="text" class="form-control form-control-sm text-end" value="${formatoArgentino(item.precio)}" data-field="precio_costo" oninput="actualizarTotales()"></td>
+              <td><input type="text" class="form-control form-control-sm text-center" value="${markup}" data-field="mark_up" oninput="actualizarTotales()"></td>
+              <td>
+                  <select class="form-select form-select-sm" data-field="iva" oninput="actualizarTotales()">
+                      <option value="21" ${iva == 21 ? 'selected' : ''}>21%</option>
+                      <option value="10.5" ${iva == 10.5 ? 'selected' : ''}>10.5%</option>
+                      <option value="0" ${iva == 0 ? 'selected' : ''}>0%</option>
+                  </select>
+              </td>
+              <td class="precio-venta text-end align-middle fw-bold">${formatoArgentino(item.precio_venta)}</td>
+              <td class="subtotal-item fw-bold text-end align-middle"></td>
+              <td class="text-center align-middle">
+                  <button class="btn btn-sm" onclick="toggleVisibilidad(this.closest('tr'))" title="Ocultar/Mostrar en PDF"><i class="fas ${item.visible_en_pdf ? 'fa-eye' : 'fa-eye-slash'}"></i></button>
+                  <button class="btn btn-sm text-danger" onclick="this.closest('tr').remove(); actualizarTotales();" title="Eliminar ítem"><i class="fas fa-trash-alt"></i></button>
+              </td>
+          `;
+          tbody.appendChild(fila);
       });
 
+      // 4. Actualiza los totales y la UI al final
       actualizarTotales();
-
       document.getElementById('form-title').textContent = `Editando Presupuesto #${id}`;
       document.getElementById('btn-guardar').textContent = 'Actualizar Presupuesto';
       document.getElementById('btn-cancelar-edicion').style.display = 'inline-block';
-      window.scrollTo(0, 0); // Sube al inicio de la página para ver el formulario
+      window.scrollTo(0, 0);
+
   } catch (error) {
       console.error("Error al cargar para editar:", error);
-      alert('Error al cargar el presupuesto para editar.');
+      alert(`No se pudo cargar el presupuesto para editar: ${error.message}`);
   }
 }
 
@@ -523,31 +591,36 @@ function parsearMoneda(texto) {
 
 // AGREGAR EN: static/js/presupuesto.js
 
-/**
- * Muestra una lista de sugerencias de componentes internos debajo de la barra de búsqueda.
- */
+// REEMPLAZA ESTA FUNCIÓN EN: static/js/presupuesto.js
 async function buscarComponentesSugeridos(query) {
   const suggestionsContainer = document.getElementById('search-suggestions');
+  const btnCrearTemporal = document.getElementById('btn-crear-temporal');
+  
   if (query.length < 2) {
-      suggestionsContainer.innerHTML = '';
       suggestionsContainer.style.display = 'none';
+      btnCrearTemporal.style.display = 'none';
       return;
   }
 
-  const response = await fetch(`/api/componentes?q=${encodeURIComponent(query)}`);
-  const componentes = await response.json();
-  
-  if (componentes.length > 0) {
-      suggestionsContainer.innerHTML = componentes.map(c => 
-          `<div class="result-item" onclick='seleccionarComponenteSugerido(${JSON.stringify(c)})'>
-              <strong>${c.producto}</strong> <span class="text-muted">(${c.codigo})</span>
-              <span class="float-end text-success fw-bold">${formatoArgentino(c.precio_venta)}</span>
-          </div>`
-      ).join('');
+  try {
+      const response = await fetch(`/api/componentes?q=${encodeURIComponent(query)}`);
+      const componentes = await response.json();
+      
+      if (componentes.length > 0) {
+          suggestionsContainer.innerHTML = componentes.map(c => 
+              `<div class="result-item" onclick='seleccionarProducto(${JSON.stringify(c)})'>
+                  <strong>${c.producto}</strong> (${c.codigo})
+                  <span class="float-end text-success fw-bold">${formatoArgentino(c.precio_venta)}</span>
+              </div>`
+          ).join('');
+          btnCrearTemporal.style.display = 'none';
+      } else {
+          suggestionsContainer.innerHTML = `<div class="result-item text-muted">No se encontraron componentes guardados.</div>`;
+          btnCrearTemporal.style.display = 'inline-block';
+      }
       suggestionsContainer.style.display = 'block';
-  } else {
-      suggestionsContainer.innerHTML = `<div class="result-item text-muted">No se encontraron componentes internos. Haz clic en "Agregar" para buscar en proveedores.</div>`;
-      suggestionsContainer.style.display = 'block';
+  } catch (error) {
+      suggestionsContainer.innerHTML = `<div class="result-item text-danger">Error al buscar.</div>`;
   }
 }
 
@@ -663,3 +736,191 @@ async function poblarSelectDinamico(selectId, apiUrl) {
       document.getElementById(selectId).innerHTML = '<option value="">Error al cargar</option>';
   }
 }
+
+function renderizarFilaItem(item) {
+  const tbody = document.getElementById('tabla-items-presupuesto');
+  const tr = document.createElement('tr');
+  
+  // Guardamos los datos importantes en el dataset de la fila
+  tr.dataset.itemId = item.id || '';
+  tr.dataset.productoNombre = item.producto;
+  tr.classList.toggle('item-oculto', !item.visible_en_pdf);
+
+  const markup = (item.precio > 0 ? item.precio_venta / item.precio : (item.mark_up || 1.3)).toFixed(2).replace('.', ',');
+  const iva = item.iva || 21;
+  
+  tr.innerHTML = `
+      <td class="text-center align-middle drag-handle" title="Arrastrar para reordenar"><i class="fas fa-bars"></i></td>
+      <td>
+          <span>${item.producto}</span>
+          <small class="text-muted d-block">${item.codigo || 'Ítem Temporal'}</small>
+      </td>
+      <td><input type="number" class="form-control form-control-sm text-center" value="${item.cantidad}" data-field="cantidad" oninput="actualizarTotales()"></td>
+      <td><input type="text" class="form-control form-control-sm text-end" value="${formatoArgentino(item.precio)}" data-field="precio_costo" oninput="actualizarTotales()"></td>
+      <td><input type="text" class="form-control form-control-sm text-center" value="${markup}" data-field="mark_up" oninput="actualizarTotales()"></td>
+      <td>
+          <select class="form-select form-select-sm" data-field="iva">
+              <option value="21" ${iva == 21 ? 'selected' : ''}>21%</option>
+              <option value="10.5" ${iva == 10.5 ? 'selected' : ''}>10.5%</option>
+              <option value="0" ${iva == 0 ? 'selected' : ''}>0%</option>
+          </select>
+      </td>
+      <td class="precio-venta text-end align-middle fw-bold">${formatoArgentino(item.precio_venta)}</td>
+      <td class="subtotal-item fw-bold text-end align-middle"></td>
+      <td class="text-center align-middle">
+          <button class="btn btn-sm" onclick="toggleVisibilidad(this.closest('tr'))" title="Ocultar/Mostrar en PDF"><i class="fas ${item.visible_en_pdf ? 'fa-eye' : 'fa-eye-slash'}"></i></button>
+          <button class="btn btn-sm text-danger" onclick="this.closest('tr').remove(); actualizarTotales();" title="Eliminar ítem"><i class="fas fa-trash-alt"></i></button>
+      </td>
+  `;
+  tbody.appendChild(tr);
+}
+
+/**
+* Cambia el estado visual de un ítem para indicar si será visible en el PDF.
+*/
+function toggleVisibilidad(filaElemento) {
+  filaElemento.classList.toggle('item-oculto');
+  const esVisible = !filaElemento.classList.contains('item-oculto');
+  const eyeIcon = filaElemento.querySelector('.fa-eye, .fa-eye-slash');
+  eyeIcon.className = `fas ${esVisible ? 'fa-eye' : 'fa-eye-slash'}`;
+}
+
+/**
+* Sobreescribe el comportamiento del modal de "Crear Componente" para que funcione
+* como un creador de ítems temporales.
+*/
+function abrirModalItemTemporal() {
+  const query = document.getElementById('producto-search').value.trim();
+  document.getElementById('nuevo-componente-nombre').value = query; // Rellenar con la búsqueda
+  document.getElementById('nuevo-componente-costo').value = '';
+  
+  // Limpiar sugerencias y mostrar modal
+  document.getElementById('search-suggestions').style.display = 'none';
+  document.getElementById('producto-search').value = '';
+  
+  const modal = new bootstrap.Modal(document.getElementById('modalCrearComponente'));
+  
+  // Cambiamos el comportamiento del botón de guardado del modal
+  const saveButton = document.querySelector('#modalCrearComponente .btn-primary');
+  saveButton.textContent = 'Agregar Ítem Temporal al Presupuesto';
+  saveButton.onclick = () => agregarItemTemporalDirecto(); // Asignamos la nueva función
+  
+  modal.show();
+}
+
+/**
+* Recoge los datos del modal y crea un ítem temporal directamente en la tabla.
+*/
+function agregarItemTemporalDirecto() {
+  const nombre = document.getElementById('nuevo-componente-nombre').value;
+  const costo = parseFloat(document.getElementById('nuevo-componente-costo').value) || 0;
+  const markup = parseFloat(document.getElementById('nuevo-componente-markup').value) || 1.3;
+  
+  if (!nombre) {
+      alert("El nombre del producto es obligatorio.");
+      return;
+  }
+
+  const item = {
+      producto: nombre.toUpperCase(),
+      codigo: 'TEMPORAL',
+      cantidad: 1,
+      precio: costo,
+      precio_venta: costo * markup,
+      iva: 21,
+      visible_en_pdf: true
+  };
+  
+  renderizarFilaItem(item);
+  actualizarTotales();
+
+  bootstrap.Modal.getInstance(document.getElementById('modalCrearComponente')).hide();
+}
+
+// AGREGA ESTAS NUEVAS FUNCIONES AL FINAL DE: static/js/presupuesto.js
+
+/**
+ * Renderiza una única fila en la tabla de ítems. Centraliza la creación del HTML.
+ */
+function renderizarFilaItem(item) {
+  const tbody = document.getElementById('tabla-items-presupuesto');
+  const tr = document.createElement('tr');
+  
+  tr.dataset.itemId = item.id || '';
+  tr.dataset.productoNombre = item.producto;
+  tr.classList.toggle('item-oculto', !item.visible_en_pdf);
+
+  const markup = (item.precio > 0 ? item.precio_venta / item.precio : (item.mark_up || 1.3)).toFixed(2).replace('.', ',');
+  
+  tr.innerHTML = `
+      <td class="text-center align-middle drag-handle" title="Arrastrar para reordenar"><i class="fas fa-bars"></i></td>
+      <td>
+          <span>${item.producto}</span>
+          <small class="text-muted d-block">${item.codigo || 'Ítem Temporal'}</small>
+      </td>
+      <td><input type="number" class="form-control form-control-sm text-center" value="${item.cantidad}" data-field="cantidad" oninput="actualizarTotales()"></td>
+      <td><input type="text" class="form-control form-control-sm text-end" value="${formatoArgentino(item.precio)}" data-field="precio_costo" oninput="actualizarTotales()"></td>
+      <td><input type="text" class="form-control form-control-sm text-center" value="${markup}" data-field="mark_up" oninput="actualizarTotales()"></td>
+      <td class="precio-venta text-end align-middle fw-bold">${formatoArgentino(item.precio_venta)}</td>
+      <td class="subtotal-item fw-bold text-end align-middle"></td>
+      <td class="text-center align-middle">
+          <button class="btn btn-sm" onclick="toggleVisibilidad(this.closest('tr'))" title="Ocultar/Mostrar en PDF"><i class="fas ${item.visible_en_pdf ? 'fa-eye' : 'fa-eye-slash'}"></i></button>
+          <button class="btn btn-sm text-danger" onclick="this.closest('tr').remove(); actualizarTotales();" title="Eliminar ítem"><i class="fas fa-trash-alt"></i></button>
+      </td>
+  `;
+  tbody.appendChild(tr);
+}
+
+/**
+* Cambia la visibilidad de un ítem en el PDF (alterna la clase CSS y el ícono).
+*/
+function toggleVisibilidad(filaElemento) {
+  filaElemento.classList.toggle('item-oculto');
+  const esVisible = !filaElemento.classList.contains('item-oculto');
+  const eyeIcon = filaElemento.querySelector('.fa-eye, .fa-eye-slash');
+  eyeIcon.className = `fas ${esVisible ? 'fa-eye' : 'fa-eye-slash'}`;
+}
+
+/**
+* Agrega un ítem temporal usando un simple 'prompt' para el precio.
+*/
+function agregarItemTemporalDesdeBusqueda() {
+  const nombreProducto = document.getElementById('producto-search').value.trim().toUpperCase();
+  if (!nombreProducto) {
+      alert("Escribe un nombre para el producto temporal.");
+      return;
+  }
+
+  const precioVenta = parseFloat(prompt(`Introduce el PRECIO DE VENTA para "${nombreProducto}":`));
+  if (isNaN(precioVenta) || precioVenta < 0) {
+      alert("Precio no válido.");
+      return;
+  }
+
+  const item = {
+      id: null,
+      producto: nombreProducto,
+      codigo: 'TEMPORAL',
+      cantidad: 1,
+      precio: 0,
+      precio_venta: precioVenta,
+      mark_up: 0,
+      iva: 21,
+      visible_en_pdf: true
+  };
+  renderizarFilaItem(item);
+  actualizarTotales();
+  limpiarBusqueda();
+}
+
+/**
+* Limpia la barra de búsqueda y oculta las sugerencias.
+*/
+function limpiarBusqueda() {
+  document.getElementById('producto-search').value = '';
+  document.getElementById('search-suggestions').style.display = 'none';
+  document.getElementById('btn-crear-temporal').style.display = 'none';
+}
+
+
+

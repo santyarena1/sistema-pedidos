@@ -90,3 +90,55 @@
 .historial-card .card-header[aria-expanded="true"] i {
     transform: rotate(180deg);
 }
+
+/* AGREGA ESTO EN: static/css/presupuesto_modern.css */
+
+
+
+/* Estilos para ítems de presupuesto reordenables */
+#tabla-items-presupuesto .list-group-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+#tabla-items-presupuesto .drag-handle {
+    cursor: grab;
+    margin-right: 15px;
+    color: #adb5bd;
+}
+
+/* Estilo visual para ítems ocultos en el PDF */
+#tabla-items-presupuesto .item-oculto {
+    opacity: 0.6;
+    background-color: #f8f9fa;
+}
+
+#tabla-items-presupuesto .item-oculto .producto-nombre {
+    text-decoration: line-through;
+}
+
+/* AGREGA ESTO AL FINAL DE: static/css/presupuesto_modern.css */
+
+/* Ancho fijo para el contenido principal */
+#main-content {
+    max-width: 2000px;
+    margin-left: 240px;
+    margin-right: auto;
+}
+
+/* Estilo para el icono de arrastrar en la tabla de ítems */
+#tabla-items-presupuesto .drag-handle {
+    cursor: grab;
+    color: #adb5bd;
+    font-size: 1.2rem;
+}
+
+#tabla-items-presupuesto tr.item-oculto {
+    opacity: 0.6;
+    background-color: #f8f9fa;
+}
+
+#tabla-items-presupuesto tr.item-oculto td:first-child span {
+    text-decoration: line-through;
+}
