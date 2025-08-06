@@ -227,6 +227,7 @@ function seleccionarSugerencia(componente) {
   document.getElementById('nuevo-componente-costo').value = parseFloat(componente.precio_costo || 0);
   document.getElementById('nuevo-componente-markup').value = parseFloat(componente.mark_up || 1.3);
   document.getElementById('sugerencias-componentes').style.display = 'none';
+  limpiarBusqueda();
 }
 
 async function crearYAgregarComponente() {
@@ -269,134 +270,140 @@ async function crearYAgregarComponente() {
 
 // --- LÓGICA DE LA TABLA DE ÍTEMS ---
 
-// REEMPLAZA ESTA FUNCIÓN EN: static/js/presupuesto.js
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN: static/js/presupuesto.js
 
 function seleccionarProducto(p) {
-  const iva = parseFloat(document.getElementById('nuevo-componente-iva')?.value || p.iva || 21);
-  const costo = parsearMoneda(p.precio_costo || p.precio || 0);
-  const markup = parseFloat(p.mark_up || 1.3);
-  const precioVenta = costo * markup * (1 + (iva / 100)); // Se incluye el IVA en el cálculo inicial
+    const tbody = document.getElementById('tabla-items-presupuesto');
+    const fila = document.createElement('tr');
 
-  const fila = document.createElement('tr');
-  fila.dataset.itemId = p.id || '';
-  fila.dataset.productoNombre = p.producto;
+    // Guardamos los datos clave en el dataset para usarlos al guardar
+    fila.dataset.itemId = p.id || '';
+    fila.dataset.productoNombre = p.producto;
 
-  fila.innerHTML = `
-      <td class="text-center align-middle drag-handle" title="Arrastrar para reordenar"><i class="fas fa-bars"></i></td>
-      <td>
-          <span>${p.producto}</span>
-          <small class="text-muted d-block">${p.codigo || 'Ítem Temporal'}</small>
-      </td>
-      <td><input type="number" class="form-control form-control-sm text-center" value="1" data-field="cantidad" oninput="actualizarTotales()"></td>
-      <td><input type="text" class="form-control form-control-sm text-end" value="${formatoArgentino(costo)}" data-field="precio_costo" oninput="actualizarTotales()"></td>
-      <td><input type="text" class="form-control form-control-sm text-center" value="${markup.toFixed(2).replace('.',',')}" data-field="mark_up" oninput="actualizarTotales()"></td>
-      <td>
-          <select class="form-select form-select-sm" data-field="iva" oninput="actualizarTotales()">
-              <option value="21" ${iva == 21 ? 'selected' : ''}>21%</option>
-              <option value="10.5" ${iva == 10.5 ? 'selected' : ''}>10.5%</option>
-              <option value="0" ${iva == 0 ? 'selected' : ''}>0%</option>
-          </select>
-      </td>
-      <td class="precio-venta text-end align-middle fw-bold">${formatoArgentino(precioVenta)}</td>
-      <td class="subtotal-item fw-bold text-end align-middle"></td>
-      
-      <td class="text-center align-middle">
-          <button class="btn btn-sm" onclick="toggleVisibilidad(this.closest('tr'))" title="Ocultar/Mostrar en PDF"><i class="fas fa-eye"></i></button>
-          <button class="btn btn-sm text-danger" onclick="this.closest('tr').remove(); actualizarTotales();" title="Eliminar ítem"><i class="fas fa-trash-alt"></i></button>
-      </td>
-  `;
+    // Asignamos los valores por defecto si no vienen del objeto 'p'
+    const iva = p.iva !== undefined ? p.iva : 10.5; // IVA por defecto en 10.5%
+    const costo = parsearMoneda(p.precio_costo || p.precio || 0);
+    const markup = parseFloat(p.mark_up || 1.3);
+    const cantidad = p.cantidad || 1;
+    const precioVenta = costo * markup; // El IVA es solo visual, no afecta el cálculo
 
-  document.getElementById('tabla-items-presupuesto').appendChild(fila);
-  actualizarTotales();
+    // Construimos la fila completa con las 9 columnas correctas
+    fila.innerHTML = `
+        <td class="text-center align-middle drag-handle" title="Arrastrar para reordenar"><i class="fas fa-bars"></i></td>
+        <td>
+            <span>${p.producto}</span>
+            <small class="text-muted d-block">${p.codigo || 'Ítem Temporal'}</small>
+        </td>
+        <td><input type="number" class="form-control form-control-sm text-center" value="${cantidad}" data-field="cantidad" oninput="actualizarTotales()"></td>
+        <td><input type="text" class="form-control form-control-sm text-end" value="${formatoArgentino(costo)}" data-field="precio_costo" oninput="actualizarTotales()"></td>
+        <td><input type="text" class="form-control form-control-sm text-center" value="${markup.toFixed(2).replace('.',',')}" data-field="mark_up" oninput="actualizarTotales()"></td>
+        <td>
+            <select class="form-select form-select-sm" data-field="iva">
+                <option value="21" ${iva == 21 ? 'selected' : ''}>21%</option>
+                <option value="10.5" ${iva == 10.5 ? 'selected' : ''}>10.5%</option>
+                <option value="0" ${iva == 0 ? 'selected' : ''}>0%</option>
+            </select>
+        </td>
+        <td class="precio-venta text-end align-middle fw-bold">${formatoArgentino(precioVenta)}</td>
+        <td class="subtotal-item fw-bold text-end align-middle"></td>
+        <td class="text-center align-middle">
+            <button class="btn btn-sm" onclick="toggleVisibilidad(this.closest('tr'))" title="Ocultar/Mostrar en PDF"><i class="fas fa-eye"></i></button>
+            <button class="btn btn-sm text-danger" onclick="this.closest('tr').remove(); actualizarTotales();" title="Eliminar ítem"><i class="fas fa-trash-alt"></i></button>
+        </td>
+    `;
+    
+    tbody.appendChild(fila);
+    actualizarTotales();
 
-  const modalBusqueda = bootstrap.Modal.getInstance(document.getElementById("modalBusquedaExterna"));
-  if (modalBusqueda) {
-    // Asegurarse de que el modal exista antes de intentar ocultarlo
-    const modalElement = document.getElementById("modalBusquedaExterna");
-    if (modalElement.classList.contains('show')) {
-        modalBusqueda.hide();
+    // Limpiamos la UI de búsqueda después de seleccionar
+    document.getElementById('search-suggestions').style.display = 'none';
+    document.getElementById('producto-search').value = '';
+
+    const modalBusqueda = bootstrap.Modal.getInstance(document.getElementById("modalBusquedaExterna"));
+    if (modalBusqueda) {
+        const modalElement = document.getElementById("modalBusquedaExterna");
+        if (modalElement && modalElement.classList.contains('show')) {
+            modalBusqueda.hide();
+        }
     }
-  }
 }
 
-// REEMPLAZA ESTA FUNCIÓN EN: static/js/presupuesto.js
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN: static/js/presupuesto.js
+
 function actualizarTotales() {
-  let subtotalGeneral = 0;
-  document.querySelectorAll("#tabla-items-presupuesto tr").forEach(fila => {
-      const cantidad = parseInt(fila.querySelector('[data-field="cantidad"]').value) || 0;
-      const precioCosto = parsearMoneda(fila.querySelector('[data-field="precio_costo"]').value);
-      const markup = parseFloat(fila.querySelector('[data-field="mark_up"]').value.replace(',', '.')) || 1.0;
-      
-      // CORRECCIÓN: El precio de venta ahora incluye el IVA en su cálculo
-      const ivaPorc = parseFloat(fila.querySelector('[data-field="iva"]')?.value || 21) / 100;
-      const precioConMarkup = precioCosto * markup;
-      const precioVenta = precioConMarkup * (1 + ivaPorc);
-      
-      const subtotalItem = cantidad * precioVenta;
-      subtotalGeneral += subtotalItem;
+    let subtotalGeneral = 0;
+    document.querySelectorAll("#tabla-items-presupuesto tr").forEach(fila => {
+        const cantidad = parseInt(fila.querySelector('[data-field="cantidad"]').value) || 1;
+        const precioCosto = parsearMoneda(fila.querySelector('[data-field="precio_costo"]').value);
+        const markup = parseFloat(fila.querySelector('[data-field="mark_up"]').value.replace(',', '.')) || 1.0;
+        
+        // CORRECCIÓN: El precio de venta se calcula SIN el IVA.
+        const precioVenta = precioCosto * markup;
+        const subtotalItem = cantidad * precioVenta;
+        subtotalGeneral += subtotalItem;
 
-      fila.querySelector('.precio-venta').textContent = formatoArgentino(precioVenta);
-      fila.querySelector('.subtotal-item').textContent = formatoArgentino(subtotalItem);
-  });
+        fila.querySelector('.precio-venta').textContent = formatoArgentino(precioVenta);
+        fila.querySelector('.subtotal-item').textContent = formatoArgentino(subtotalItem);
+    });
 
-  const descuentoValor = parseFloat(document.getElementById('descuento').value) || 0;
-  const totalFinal = subtotalGeneral - descuentoValor;
+    const descuento = parseFloat(document.getElementById('descuento').value) || 0;
+    const totalFinal = subtotalGeneral - descuento;
 
-  document.getElementById('subtotal-valor').textContent = formatoArgentino(subtotalGeneral);
-  document.getElementById('descuento-valor').textContent = `- ${formatoArgentino(descuentoValor)}`;
-  document.getElementById('total-valor').textContent = formatoArgentino(totalFinal);
+    document.getElementById('subtotal-valor').textContent = formatoArgentino(subtotalGeneral);
+    document.getElementById('descuento-valor').textContent = `- ${formatoArgentino(descuento)}`;
+    document.getElementById('total-valor').textContent = formatoArgentino(totalFinal);
 }
 
 // --- FUNCIONES CRUD (API) Y DE HISTORIAL ---
 
 // REEMPLAZA ESTA FUNCIÓN EN: static/js/presupuesto.js
 async function guardarPresupuesto() {
-  const presupuestoId = document.getElementById('presupuestoId').value;
-  const esEdicion = !!presupuestoId;
-  
-  const body = {
-      cliente: document.getElementById('cliente').value,
-      fecha_emision: document.getElementById('fecha_emision').value,
-      fecha_validez: document.getElementById('fecha_validez').value,
-      descuento: parseFloat(document.getElementById('descuento').value) || 0,
-      items: []
-  };
+    const presupuestoId = document.getElementById('presupuestoId').value;
+    const esEdicion = !!presupuestoId;
+    
+    const body = {
+        cliente: document.getElementById('cliente').value,
+        fecha_emision: document.getElementById('fecha_emision').value,
+        fecha_validez: document.getElementById('fecha_validez').value,
+        descuento: parseFloat(document.getElementById('descuento').value) || 0,
+        items: []
+    };
 
-  document.querySelectorAll("#tabla-items-presupuesto tr").forEach(fila => {
-      // CORRECCIÓN: Ahora el querySelector encontrará el campo de IVA
-      const ivaField = fila.querySelector('[data-field="iva"]');
-      
-      body.items.push({
-          id: fila.dataset.itemId ? parseInt(fila.dataset.itemId) : null,
-          producto: fila.dataset.productoNombre,
-          cantidad: parseInt(fila.querySelector('[data-field="cantidad"]').value),
-          precio: parsearMoneda(fila.querySelector('[data-field="precio_costo"]').value),
-          // Aseguramos que la lectura del IVA sea segura
-          iva: ivaField ? parseFloat(ivaField.value) : 21, 
-          precio_venta: parsearMoneda(fila.querySelector('.precio-venta').textContent),
-          visible_en_pdf: !fila.classList.contains('item-oculto')
-      });
-  });
+    document.querySelectorAll("#tabla-items-presupuesto tr").forEach(fila => {
+        const ivaField = fila.querySelector('[data-field="iva"]');
+        
+        body.items.push({
+            id: fila.dataset.itemId ? parseInt(fila.dataset.itemId) : null,
+            producto: fila.dataset.productoNombre,
+            cantidad: parseInt(fila.querySelector('[data-field="cantidad"]').value),
+            precio: parsearMoneda(fila.querySelector('[data-field="precio_costo"]').value),
+            iva: ivaField ? parseFloat(ivaField.value) : 10.5,
+            precio_venta: parsearMoneda(fila.querySelector('.precio-venta').textContent),
+            // ▼▼▼ CORRECCIÓN CLAVE ▼▼▼
+            // Leemos si la fila tiene la clase 'item-oculto' y enviamos el valor booleano.
+            visible_en_pdf: !fila.classList.contains('item-oculto')
+        });
+    });
 
-  if (body.items.length === 0) {
-      return alert("No se puede guardar un presupuesto sin ítems.");
-  }
+    if (body.items.length === 0) {
+        return alert("No se puede guardar un presupuesto sin ítems.");
+    }
 
-  const url = esEdicion ? `/api/presupuestos/${presupuestoId}` : '/api/presupuestos';
-  const method = esEdicion ? 'PUT' : 'POST';
+    const url = esEdicion ? `/api/presupuestos/${presupuestoId}` : '/api/presupuestos';
+    const method = esEdicion ? 'PUT' : 'POST';
 
-  try {
-      const response = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Error desconocido al guardar.');
-      
-      alert(`✅ ${data.mensaje}`);
-      limpiarFormulario();
-      cargarHistorial();
-  } catch (error) {
-      console.error("Error al guardar:", error);
-      alert(`❌ Error al guardar: ${error.message}`);
-  }
+    try {
+        const response = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Error desconocido al guardar.');
+        
+        alert(`✅ ${data.mensaje}`);
+        limpiarFormulario();
+        cargarHistorial();
+    } catch (error) {
+        console.error("Error al guardar:", error);
+        alert(`❌ Error al guardar: ${error.message}`);
+    }
 }
 
 
@@ -494,75 +501,37 @@ async function cargarDetalle(id) {
 }
 
 // REEMPLAZA ESTA FUNCIÓN EN: static/js/presupuesto.js
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN: static/js/presupuesto.js
 
 async function cargarParaEditar(id) {
-  try {
-      const response = await fetch(`/api/presupuestos/${id}`);
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Error al cargar el presupuesto.');
+    try {
+        const response = await fetch(`/api/presupuestos/${id}`);
+        const data = await response.json();
+        
+        // Limpia el formulario y la tabla
+        document.getElementById('presupuestoId').value = data.id;
+        document.getElementById('cliente').value = data.cliente;
+        document.getElementById('fecha_emision').value = data.fecha_emision.split('T')[0];
+        document.getElementById('fecha_validez').value = data.fecha_validez.split('T')[0];
+        document.getElementById('descuento').value = data.descuento || 0;
+        
+        const tbody = document.getElementById('tabla-items-presupuesto');
+        tbody.innerHTML = '';
+        
+        // CORRECCIÓN: Ahora llama a la función `seleccionarProducto` para cada ítem,
+        // asegurando que se dibuje correctamente, incluyendo el IVA.
+        data.items.forEach(item => seleccionarProducto(item));
 
-      // 1. Limpia el formulario y la tabla antes de llenarlos
-      limpiarFormulario();
-      
-      // 2. Rellena los datos principales del presupuesto
-      document.getElementById('presupuestoId').value = data.id;
-      document.getElementById('cliente').value = data.cliente;
-      document.getElementById('fecha_emision').value = data.fecha_emision;
-      document.getElementById('fecha_validez').value = data.fecha_validez;
-      document.getElementById('descuento').value = data.descuento || 0;
+        actualizarTotales();
 
-      const tbody = document.getElementById('tabla-items-presupuesto');
-      tbody.innerHTML = ''; // Asegura que la tabla esté vacía
-
-      // 3. (LA SOLUCIÓN) Itera sobre los ítems y construye cada fila CORRECTAMENTE
-      data.items.forEach(item => {
-          const fila = document.createElement('tr');
-          // Guardamos los datos importantes en el dataset de la fila
-          fila.dataset.itemId = item.id || '';
-          fila.dataset.productoNombre = item.producto;
-          fila.classList.toggle('item-oculto', !item.visible_en_pdf);
-
-          const markup = (item.precio > 0 && item.precio_venta > 0 ? item.precio_venta / item.precio : (item.mark_up || 1.3)).toFixed(2).replace('.', ',');
-          const iva = item.iva || 21; // Proporciona un valor por defecto para el IVA si no existe
-
-          // Construye el HTML de la fila completa con sus 9 columnas
-          fila.innerHTML = `
-              <td class="text-center align-middle drag-handle" title="Arrastrar para reordenar"><i class="fas fa-bars"></i></td>
-              <td>
-                  <span>${item.producto}</span>
-                  <small class="text-muted d-block">${item.codigo || 'Ítem Temporal'}</small>
-              </td>
-              <td><input type="number" class="form-control form-control-sm text-center" value="${item.cantidad}" data-field="cantidad" oninput="actualizarTotales()"></td>
-              <td><input type="text" class="form-control form-control-sm text-end" value="${formatoArgentino(item.precio)}" data-field="precio_costo" oninput="actualizarTotales()"></td>
-              <td><input type="text" class="form-control form-control-sm text-center" value="${markup}" data-field="mark_up" oninput="actualizarTotales()"></td>
-              <td>
-                  <select class="form-select form-select-sm" data-field="iva" oninput="actualizarTotales()">
-                      <option value="21" ${iva == 21 ? 'selected' : ''}>21%</option>
-                      <option value="10.5" ${iva == 10.5 ? 'selected' : ''}>10.5%</option>
-                      <option value="0" ${iva == 0 ? 'selected' : ''}>0%</option>
-                  </select>
-              </td>
-              <td class="precio-venta text-end align-middle fw-bold">${formatoArgentino(item.precio_venta)}</td>
-              <td class="subtotal-item fw-bold text-end align-middle"></td>
-              <td class="text-center align-middle">
-                  <button class="btn btn-sm" onclick="toggleVisibilidad(this.closest('tr'))" title="Ocultar/Mostrar en PDF"><i class="fas ${item.visible_en_pdf ? 'fa-eye' : 'fa-eye-slash'}"></i></button>
-                  <button class="btn btn-sm text-danger" onclick="this.closest('tr').remove(); actualizarTotales();" title="Eliminar ítem"><i class="fas fa-trash-alt"></i></button>
-              </td>
-          `;
-          tbody.appendChild(fila);
-      });
-
-      // 4. Actualiza los totales y la UI al final
-      actualizarTotales();
-      document.getElementById('form-title').textContent = `Editando Presupuesto #${id}`;
-      document.getElementById('btn-guardar').textContent = 'Actualizar Presupuesto';
-      document.getElementById('btn-cancelar-edicion').style.display = 'inline-block';
-      window.scrollTo(0, 0);
-
-  } catch (error) {
-      console.error("Error al cargar para editar:", error);
-      alert(`No se pudo cargar el presupuesto para editar: ${error.message}`);
-  }
+        document.getElementById('form-title').textContent = `Editando Presupuesto #${id}`;
+        document.getElementById('btn-guardar').textContent = 'Actualizar Presupuesto';
+        document.getElementById('btn-cancelar-edicion').style.display = 'inline-block';
+        window.scrollTo(0, 0);
+    } catch (error) {
+        console.error("Error al cargar para editar:", error);
+        alert('Error al cargar el presupuesto para editar.');
+    }
 }
 
 async function eliminarPresupuesto(id) {
@@ -592,37 +561,33 @@ function parsearMoneda(texto) {
 // AGREGAR EN: static/js/presupuesto.js
 
 // REEMPLAZA ESTA FUNCIÓN EN: static/js/presupuesto.js
-async function buscarComponentesSugeridos(query) {
-  const suggestionsContainer = document.getElementById('search-suggestions');
-  const btnCrearTemporal = document.getElementById('btn-crear-temporal');
-  
-  if (query.length < 2) {
-      suggestionsContainer.style.display = 'none';
-      btnCrearTemporal.style.display = 'none';
-      return;
-  }
 
-  try {
-      const response = await fetch(`/api/componentes?q=${encodeURIComponent(query)}`);
-      const componentes = await response.json();
-      
-      if (componentes.length > 0) {
-          suggestionsContainer.innerHTML = componentes.map(c => 
-              `<div class="result-item" onclick='seleccionarProducto(${JSON.stringify(c)})'>
-                  <strong>${c.producto}</strong> (${c.codigo})
-                  <span class="float-end text-success fw-bold">${formatoArgentino(c.precio_venta)}</span>
-              </div>`
-          ).join('');
-          btnCrearTemporal.style.display = 'none';
-      } else {
-          suggestionsContainer.innerHTML = `<div class="result-item text-muted">No se encontraron componentes guardados.</div>`;
-          btnCrearTemporal.style.display = 'inline-block';
-      }
-      suggestionsContainer.style.display = 'block';
-  } catch (error) {
-      suggestionsContainer.innerHTML = `<div class="result-item text-danger">Error al buscar.</div>`;
+async function buscarComponentesSugeridos(query) {
+    const suggestionsContainer = document.getElementById('search-suggestions');
+    if (query.length < 2) {
+        suggestionsContainer.innerHTML = '';
+        suggestionsContainer.style.display = 'none';
+        return;
+    }
+  
+    // Corregimos la URL para que apunte a la API correcta de componentes
+    const response = await fetch(`/api/componentes?q=${encodeURIComponent(query)}`);
+    const componentes = await response.json();
+    
+    if (componentes.length > 0) {
+        suggestionsContainer.innerHTML = componentes.map(c => 
+            `<div class="result-item" onclick='seleccionarProducto(${JSON.stringify(c)})'>
+                <strong>${c.producto}</strong> <span class="text-muted">(${c.codigo})</span>
+                <span class="float-end text-success fw-bold">${formatoArgentino(c.precio_venta)}</span>
+            </div>`
+        ).join('');
+        suggestionsContainer.style.display = 'block';
+    } else {
+        // Si no hay resultados, mostramos un mensaje simple
+        suggestionsContainer.innerHTML = `<div class="result-item text-muted">No se encontraron componentes...</div>`;
+        suggestionsContainer.style.display = 'block';
+    }
   }
-}
 
 /**
 * Agrega un componente desde la lista de sugerencias a la tabla del presupuesto.
@@ -737,42 +702,47 @@ async function poblarSelectDinamico(selectId, apiUrl) {
   }
 }
 
-function renderizarFilaItem(item) {
-  const tbody = document.getElementById('tabla-items-presupuesto');
-  const tr = document.createElement('tr');
-  
-  // Guardamos los datos importantes en el dataset de la fila
-  tr.dataset.itemId = item.id || '';
-  tr.dataset.productoNombre = item.producto;
-  tr.classList.toggle('item-oculto', !item.visible_en_pdf);
+// AGREGA ESTA NUEVA FUNCIÓN A: static/js/presupuesto.js
 
-  const markup = (item.precio > 0 ? item.precio_venta / item.precio : (item.mark_up || 1.3)).toFixed(2).replace('.', ',');
-  const iva = item.iva || 21;
-  
-  tr.innerHTML = `
-      <td class="text-center align-middle drag-handle" title="Arrastrar para reordenar"><i class="fas fa-bars"></i></td>
-      <td>
-          <span>${item.producto}</span>
-          <small class="text-muted d-block">${item.codigo || 'Ítem Temporal'}</small>
-      </td>
-      <td><input type="number" class="form-control form-control-sm text-center" value="${item.cantidad}" data-field="cantidad" oninput="actualizarTotales()"></td>
-      <td><input type="text" class="form-control form-control-sm text-end" value="${formatoArgentino(item.precio)}" data-field="precio_costo" oninput="actualizarTotales()"></td>
-      <td><input type="text" class="form-control form-control-sm text-center" value="${markup}" data-field="mark_up" oninput="actualizarTotales()"></td>
-      <td>
-          <select class="form-select form-select-sm" data-field="iva">
-              <option value="21" ${iva == 21 ? 'selected' : ''}>21%</option>
-              <option value="10.5" ${iva == 10.5 ? 'selected' : ''}>10.5%</option>
-              <option value="0" ${iva == 0 ? 'selected' : ''}>0%</option>
-          </select>
-      </td>
-      <td class="precio-venta text-end align-middle fw-bold">${formatoArgentino(item.precio_venta)}</td>
-      <td class="subtotal-item fw-bold text-end align-middle"></td>
-      <td class="text-center align-middle">
-          <button class="btn btn-sm" onclick="toggleVisibilidad(this.closest('tr'))" title="Ocultar/Mostrar en PDF"><i class="fas ${item.visible_en_pdf ? 'fa-eye' : 'fa-eye-slash'}"></i></button>
-          <button class="btn btn-sm text-danger" onclick="this.closest('tr').remove(); actualizarTotales();" title="Eliminar ítem"><i class="fas fa-trash-alt"></i></button>
-      </td>
-  `;
-  tbody.appendChild(tr);
+function renderizarFilaItem(item) {
+    const tbody = document.getElementById('tabla-items-presupuesto');
+    const fila = document.createElement('tr');
+    
+    // Guardamos datos clave en el dataset para usarlos al guardar
+    fila.dataset.itemId = item.id || '';
+    fila.dataset.productoNombre = item.producto;
+
+    // Asignamos los valores por defecto si no vienen
+    const iva = item.iva || 10.5; // Default 10.5%
+    const costo = parsearMoneda(item.precio_costo || item.precio || 0);
+    const markup = parseFloat(item.mark_up || 1.3);
+    const cantidad = item.cantidad || 1;
+    const precioVenta = costo * markup; // IVA ya no afecta el precio de venta
+
+    fila.innerHTML = `
+        <td class="text-center align-middle drag-handle" title="Arrastrar para reordenar"><i class="fas fa-bars"></i></td>
+        <td>
+            <span>${item.producto}</span>
+            <small class="text-muted d-block">${item.codigo || 'Ítem Temporal'}</small>
+        </td>
+        <td><input type="number" class="form-control form-control-sm text-center" value="${cantidad}" data-field="cantidad" oninput="actualizarTotales()"></td>
+        <td><input type="text" class="form-control form-control-sm text-end" value="${formatoArgentino(costo)}" data-field="precio_costo" oninput="actualizarTotales()"></td>
+        <td><input type="text" class="form-control form-control-sm text-center" value="${markup.toFixed(2).replace('.',',')}" data-field="mark_up" oninput="actualizarTotales()"></td>
+        <td>
+            <select class="form-select form-select-sm" data-field="iva">
+                <option value="21" ${iva == 21 ? 'selected' : ''}>21%</option>
+                <option value="10.5" ${iva == 10.5 ? 'selected' : ''}>10.5%</option>
+                <option value="0" ${iva == 0 ? 'selected' : ''}>0%</option>
+            </select>
+        </td>
+        <td class="precio-venta text-end align-middle fw-bold">${formatoArgentino(precioVenta)}</td>
+        <td class="subtotal-item fw-bold text-end align-middle"></td>
+        <td class="text-center align-middle">
+            <button class="btn btn-sm" onclick="toggleVisibilidad(this.closest('tr'))" title="Ocultar/Mostrar en PDF"><i class="fas fa-eye"></i></button>
+            <button class="btn btn-sm text-danger" onclick="this.closest('tr').remove(); actualizarTotales();" title="Eliminar ítem"><i class="fas fa-trash-alt"></i></button>
+        </td>
+    `;
+    tbody.appendChild(fila);
 }
 
 /**
@@ -885,32 +855,20 @@ function toggleVisibilidad(filaElemento) {
 * Agrega un ítem temporal usando un simple 'prompt' para el precio.
 */
 function agregarItemTemporalDesdeBusqueda() {
-  const nombreProducto = document.getElementById('producto-search').value.trim().toUpperCase();
-  if (!nombreProducto) {
-      alert("Escribe un nombre para el producto temporal.");
-      return;
-  }
+    const nombreProducto = document.getElementById('producto-search').value.trim().toUpperCase();
+    if (!nombreProducto) return;
 
-  const precioVenta = parseFloat(prompt(`Introduce el PRECIO DE VENTA para "${nombreProducto}":`));
-  if (isNaN(precioVenta) || precioVenta < 0) {
-      alert("Precio no válido.");
-      return;
-  }
+    const precioVenta = parseFloat(prompt(`Introduce el PRECIO DE VENTA para "${nombreProducto}":`));
+    if (isNaN(precioVenta) || precioVenta < 0) return;
 
-  const item = {
-      id: null,
-      producto: nombreProducto,
-      codigo: 'TEMPORAL',
-      cantidad: 1,
-      precio: 0,
-      precio_venta: precioVenta,
-      mark_up: 0,
-      iva: 21,
-      visible_en_pdf: true
-  };
-  renderizarFilaItem(item);
-  actualizarTotales();
-  limpiarBusqueda();
+    seleccionarProducto({
+        id: null,
+        producto: nombreProducto,
+        codigo: 'TEMPORAL',
+        precio_costo: 0,
+        precio_venta: precioVenta,
+        mark_up: 0
+    });
 }
 
 /**
@@ -923,4 +881,45 @@ function limpiarBusqueda() {
 }
 
 
+function limpiarBusqueda() {
+    document.getElementById('producto-search').value = '';
+    document.getElementById('search-suggestions').style.display = 'none';
+    const btnCrear = document.getElementById('btn-crear-temporal');
+    if (btnCrear) {
+        btnCrear.style.display = 'none';
+    }
+}
 
+// AGREGA ESTAS NUEVAS FUNCIONES A: static/js/presupuesto.js
+
+/**
+ * Abre el modal simplificado para crear un ítem temporal.
+ * Pre-rellena el nombre si el usuario ya escribió algo en el buscador.
+ */
+function abrirModalItemTemporal() {
+    const nombreProducto = document.getElementById('producto-search').value.trim();
+    document.getElementById('nombre-item-temporal').value = nombreProducto;
+    document.getElementById('costo-item-temporal').value = '';
+
+    new bootstrap.Modal(document.getElementById('modalCrearItemTemporal')).show();
+}
+
+/**
+ * Toma los datos del modal simplificado y crea el ítem en la tabla.
+ */
+function agregarItemTemporalDesdeModal() {
+    const nombre = document.getElementById('nombre-item-temporal').value;
+    const costo = parseFloat(document.getElementById('costo-item-temporal').value) || 0;
+
+    if (!nombre) {
+        alert("El nombre del producto es obligatorio.");
+        return;
+    }
+
+    seleccionarProducto({
+        producto: nombre.toUpperCase(),
+        precio_costo: costo
+    });
+
+    bootstrap.Modal.getInstance(document.getElementById('modalCrearItemTemporal')).hide();
+}

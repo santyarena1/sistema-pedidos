@@ -14,27 +14,18 @@
 </head>
 <body>
     <div class="d-flex">
-
         <div id="sidebar">
             <div class="sidebar-title my-3 text-center">
                 <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo TheGamerShop" class="img-fluid" style="max-height: 80px;">
             </div>
-
             {% set ruta_actual = request.path %}
             {% set es_presupuestos = ruta_actual.startswith('/presupuestos') or ruta_actual.startswith('/pcs_predeterminadas') %}
             {% set es_stock = ruta_actual.startswith('/stock') or ruta_actual.startswith('/componentes-presupuesto') %}
             {% set es_pedidos = ruta_actual.startswith('/pedidos') %}
-
             <ul class="nav flex-column">
+                <li class="nav-item mb-1"><a class="nav-link {% if ruta_actual == '/buscar' %}active{% endif %}" href="/buscar"><i class="fas fa-search fa-fw me-2"></i>Comparador</a></li>
                 <li class="nav-item mb-1">
-                    <a class="nav-link {% if ruta_actual == '/buscar' %}active{% endif %}" href="/buscar">
-                        <i class="fas fa-search fa-fw me-2"></i>Comparador
-                    </a>
-                </li>
-                <li class="nav-item mb-1">
-                    <a class="nav-link {% if not es_presupuestos %}collapsed{% endif %}" href="#" data-bs-toggle="collapse" data-bs-target="#presupuestos-menu" aria-expanded="{{ 'true' if es_presupuestos else 'false' }}">
-                        <i class="fas fa-file-invoice-dollar fa-fw me-2"></i>Presupuestos
-                    </a>
+                    <a class="nav-link {% if not es_presupuestos %}collapsed{% endif %}" href="#" data-bs-toggle="collapse" data-bs-target="#presupuestos-menu" aria-expanded="{{ 'true' if es_presupuestos else 'false' }}"><i class="fas fa-file-invoice-dollar fa-fw me-2"></i>Presupuestos</a>
                     <div class="collapse {% if es_presupuestos %}show{% endif %}" id="presupuestos-menu">
                         <ul class="nav flex-column ms-3">
                             <li class="nav-item"><a class="nav-link {% if ruta_actual == '/presupuestos' %}active{% endif %}" href="/presupuestos"><i class="fas fa-plus fa-fw me-2"></i>Crear presupuesto</a></li>
@@ -43,9 +34,7 @@
                     </div>
                 </li>
                 <li class="nav-item mb-1">
-                    <a class="nav-link {% if not es_stock %}collapsed{% endif %}" href="#" data-bs-toggle="collapse" data-bs-target="#stock-menu" aria-expanded="{{ 'true' if es_stock else 'false' }}">
-                        <i class="fas fa-boxes fa-fw me-2"></i>Stock y componentes
-                    </a>
+                    <a class="nav-link {% if not es_stock %}collapsed{% endif %}" href="#" data-bs-toggle="collapse" data-bs-target="#stock-menu" aria-expanded="{{ 'true' if es_stock else 'false' }}"><i class="fas fa-boxes fa-fw me-2"></i>Stock y componentes</a>
                     <div class="collapse {% if es_stock %}show{% endif %}" id="stock-menu">
                         <ul class="nav flex-column ms-3">
                             <li class="nav-item"><a class="nav-link {% if ruta_actual == '/stock' %}active{% endif %}" href="/stock"><i class="fas fa-list-alt fa-fw me-2"></i>Lista de stock</a></li>
@@ -54,9 +43,7 @@
                     </div>
                 </li>
                 <li class="nav-item mb-1">
-                    <a class="nav-link {% if not es_pedidos %}collapsed{% endif %}" href="#" data-bs-toggle="collapse" data-bs-target="#pedidos-menu" aria-expanded="{{ 'true' if es_pedidos else 'false' }}">
-                        <i class="fas fa-truck fa-fw me-2"></i>Pedidos
-                    </a>
+                    <a class="nav-link {% if not es_pedidos %}collapsed{% endif %}" href="#" data-bs-toggle="collapse" data-bs-target="#pedidos-menu" aria-expanded="{{ 'true' if es_pedidos else 'false' }}"><i class="fas fa-truck fa-fw me-2"></i>Pedidos</a>
                     <div class="collapse {% if es_pedidos %}show{% endif %}" id="pedidos-menu">
                         <ul class="nav flex-column ms-3">
                             <li class="nav-item"><a class="nav-link {% if ruta_actual == '/pedidos' %}active{% endif %}" href="/pedidos"><i class="fas fa-plus-circle fa-fw me-2"></i>Nuevo pedido</a></li>
@@ -65,13 +52,13 @@
                     </div>
                 </li>
             </ul>
-
             <div class="mt-auto p-3 text-white small">
                 <i class="fas fa-dollar-sign me-1"></i>Oficial: (Dólar Oficial)<br>
                 <i class="fas fa-hand-holding-usd me-1"></i>Blue: (Dólar Blue)
             </div>
         </div>
-        <div id="main-content" class="flex-grow-1 p-4">
+        
+        <div id="main-content">
             <h1><i class="fas fa-file-invoice-dollar me-2"></i>Gestión de Presupuestos</h1>
             
             <div class="card card-body mb-4" id="form-presupuesto">
@@ -81,44 +68,46 @@
                     <div class="col-md-5"><label class="form-label">Cliente</label><input class="form-control" id="cliente" value="Consumidor Final" /></div>
                     <div class="col-md-2"><label class="form-label">Emisión</label><input type="date" id="fecha_emision" class="form-control" /></div>
                     <div class="col-md-2"><label class="form-label">Validez</label><input type="date" id="fecha_validez" class="form-control" /></div>
-                    <div class="col-md-3"><label class="form-label">Descuento Global (%)</label><input type="number" id="descuento" class="form-control" value="0" /></div>
+                    <div class="col-md-3"><label class="form-label">Descuento (-) o Recargo (+)</label><input type="number" id="descuento" class="form-control" value="0" /></div>
                 </div>
                 <h5 class="form-section-title">Componentes</h5>
-                  <div class="position-relative">
+                
+                <div class="position-relative">
                     <div class="input-group mb-1">
-                        <input type="text" id="producto-search" class="form-control" placeholder="Buscar componente o producto para agregar...">
-                        <button class="btn btn-success" id="btn-crear-temporal" style="display: none;" title="Crear un ítem que solo existirá en este presupuesto">+ Crear Ítem</button>
-                        <button class="btn btn-red" id="btn-agregar-producto" onclick="buscarProductoExterno(document.getElementById('producto-search').value)">Buscar Externo</button>
-                        <button class="btn btn-outline-secondary" onclick="abrirModalCrearComponente()">➕ Crear Componente</button>
+                        <input type="text" id="producto-search" class="form-control" placeholder="Buscar componente interno por nombre o código...">
+                        <button class="btn btn-success" onclick="abrirModalItemTemporal()">+ Crear Ítem Temporal</button>
+                        <button class="btn btn-red" onclick="buscarProductoExterno(document.getElementById('producto-search').value)">Buscar Externo</button>
                     </div>
                     <div id="search-suggestions" class="search-results-list"></div>
-                  </div>
+                </div>
+
                 <div class="table-responsive mb-3">
-                  <table class="table table-bordered align-middle">
-                    <thead class="table-light">
-                      <tr>
-                          <th style="width: 3%;" class="text-center"><i class="fas fa-arrows-alt"></i></th>
-                          <th style="width: 35%;">Producto</th>
-                          <th style="width: 8%;">Cant.</th>
-                          <th style="width: 12%;">Precio Costo</th>
-                          <th style="width: 10%;">Mark-Up</th>
-                          <th style="width: 10%;">IVA</th>
-                          <th style="width: 12%;">Precio Venta</th>
-                          <th style="width: 12%;">Subtotal</th>
-                          <th style="width: 8%;" class="text-center">Acciones</th> </tr>
-                    </thead>
-                    <tbody id="tabla-items-presupuesto"></tbody>
-                  </table>
+                    <table class="table table-bordered align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 3%;" class="text-center"><i class="fas fa-arrows-alt"></i></th>
+                                <th style="width: 35%;">Producto</th>
+                                <th style="width: 8%;">Cant.</th>
+                                <th style="width: 12%;">Precio Costo</th>
+                                <th style="width: 10%;">Mark-Up</th>
+                                <th style="width: 10%;">IVA</th>
+                                <th style="width: 12%;">Precio Venta</th>
+                                <th style="width: 12%;">Subtotal</th>
+                                <th style="width: 8%;" class="text-center">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabla-items-presupuesto"></tbody>
+                    </table>
                 </div>
                 <div class="d-flex justify-content-end align-items-center">
                     <div class="resumen-totales">
                         <p>Subtotal: <span id="subtotal-valor">$0,00</span></p>
-                        <p>Descuento: <span id="descuento-valor">$0,00</span></p>
+                        <p>Descuento/Recargo: <span id="descuento-valor">$0,00</span></p>
                         <h4>Total: <span id="total-valor">$0,00</span></h4>
                     </div>
                     <div class="ms-4">
                         <button class="btn btn-secondary" id="btn-cancelar-edicion" style="display: none;" onclick="limpiarFormulario()">Cancelar</button>
-                        <button class="btn btn-red btn-lg" id="btn-guardar" onclick="guardarPresupuesto()">Guardar</button>
+                        <button class="btn btn-red btn-lg" id="btn-guardar" onclick="guardarPresupuesto()">Guardar Presupuesto</button>
                     </div>
                 </div>
             </div>
@@ -130,36 +119,39 @@
               <div id="historial-presupuestos" class="d-flex flex-column gap-3"></div>
             </div>
         </div>
-        </div> <div class="modal fade" id="modalBusquedaExterna" tabindex="-1">
-        <div class="modal-dialog modal-xl"><div class="modal-content">
-            <div class="modal-header"><h5 class="modal-title">Resultados de la Búsqueda</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-            <div class="modal-body" id="resultadosBusquedaExterna"></div>
-        </div></div>
     </div>
-    <div class="modal fade" id="modalCrearComponente" tabindex="-1">
-      <div class="modal-dialog modal-lg">
-          <div class="modal-content">
-              <div class="modal-header"><h5 class="modal-title">Crear Nuevo Producto/Componente</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-              <div class="modal-body">
-                  <div class="row">
-                      <div class="col-md-8 mb-3"><label class="form-label">Nombre del Producto</label><input type="text" id="nuevo-componente-nombre" class="form-control" placeholder="Ej: Memoria RAM 16GB DDR4 3200MHz"><div id="sugerencias-componentes" class="search-results-list" style="position: static;"></div></div>
-                      <div class="col-md-4 mb-3"><label class="form-label">Categoría</label><select id="nuevo-componente-categoria" class="form-select"></select></div>
-                  </div>
-                  <div class="row">
-                      <div class="col-md-3"><label class="form-label">Código (SKU)</label><input type="text" id="nuevo-componente-codigo" class="form-control" placeholder="Se genera al elegir categoría"></div>
-                      <div class="col-md-3"><label class="form-label">Precio Costo</label><input type="number" id="nuevo-componente-costo" class="form-control"></div>
-                      <div class="col-md-3"><label class="form-label">Mark-Up</label><input type="number" id="nuevo-componente-markup" class="form-control" value="1.3" step="0.01"></div>
-                      <div class="col-md-3"><label class="form-label">IVA</label><select id="nuevo-componente-iva" class="form-select"><option value="21">21%</option><option value="10.5">10.5%</option><option value="0">0%</option></select></div>
-                  </div>
-                  <div class="mt-3"><label class="form-label">Etiquetas de Compatibilidad (Opcional)</label><select id="nuevo-componente-etiquetas" multiple></select></div>
-              </div>
-              <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button class="btn btn-primary" onclick="crearYAgregarComponente()">Crear y Agregar al Presupuesto</button></div>
-          </div>
-      </div>
+    
+    <div class="modal fade" id="modalBusquedaExterna" tabindex="-1"><div class="modal-dialog modal-xl"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Resultados de la Búsqueda</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body" id="resultadosBusquedaExterna"></div></div></div></div>
+    <div class="modal fade" id="modalCrearComponente" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Crear Nuevo Producto/Componente</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class="row"><div class="col-md-8 mb-3"><label class="form-label">Nombre del Producto</label><input type="text" id="nuevo-componente-nombre" class="form-control" placeholder="Ej: Memoria RAM 16GB DDR4 3200MHz"><div id="sugerencias-componentes" class="search-results-list" style="position: static;"></div></div><div class="col-md-4 mb-3"><label class="form-label">Categoría</label><select id="nuevo-componente-categoria" class="form-select"></select></div></div><div class="row"><div class="col-md-3"><label class="form-label">Código (SKU)</label><input type="text" id="nuevo-componente-codigo" class="form-control" placeholder="Se genera al elegir categoría"></div><div class="col-md-3"><label class="form-label">Precio Costo</label><input type="number" id="nuevo-componente-costo" class="form-control"></div><div class="col-md-3"><label class="form-label">Mark-Up</label><input type="number" id="nuevo-componente-markup" class="form-control" value="1.3" step="0.01"></div><div class="col-md-3"><label class="form-label">IVA</label><select id="nuevo-componente-iva" class="form-select"><option value="21">21%</option><option value="10.5" selected>10.5%</option><option value="0">0%</option></select></div></div><div class="mt-3"><label class="form-label">Etiquetas de Compatibilidad (Opcional)</label><select id="nuevo-componente-etiquetas" multiple></select></div></div><div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button class="btn btn-primary" onclick="crearYAgregarComponente()">Crear y Agregar al Presupuesto</button></div></div></div></div>
+    <div class="modal fade" id="modalCrearItemTemporal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+        <div class="modal-header">
+            <h5 class="modal-title">Crear Ítem Temporal</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+            <form id="form-item-temporal">
+                <div class="mb-3">
+                    <label for="nombre-item-temporal" class="form-label">Nombre del Producto</label>
+                    <input type="text" class="form-control" id="nombre-item-temporal">
+                </div>
+                <div class="mb-3">
+                    <label for="costo-item-temporal" class="form-label">Precio de Costo</label>
+                    <input type="number" class="form-control" id="costo-item-temporal" placeholder="0">
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            <button type="button" class="btn btn-primary" onclick="agregarItemTemporalDesdeModal()">Agregar al Presupuesto</button>
+        </div>
+        </div>
     </div>
-    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     <script src="{{ url_for('static', filename='js/presupuesto.js') }}"></script>
 </body>
 </html>

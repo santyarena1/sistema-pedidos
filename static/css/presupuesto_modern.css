@@ -1,27 +1,40 @@
-/* static/css/presupuesto_modern.css */
+/* REEMPLAZA TODO EL ARCHIVO: static/css/presupuesto_modern.css */
 
+/* --- Layout Principal --- */
+
+/* Esta es la regla clave para el ancho que pides */
+#main-content {
+    /* 1. Ocupa todo el espacio restante después del sidebar */
+    width: calc(100% - 240px); /* 240px es el ancho de tu sidebar */
+    
+    /* 2. Añade un padding generoso para que el contenido no toque los bordes.
+       Esto crea el efecto de que termina "un poquito antes" de la pantalla. */
+    padding: 2.5rem;
+    
+    /* 3. Evita que el contenedor se encoja más de lo necesario */
+    flex-shrink: 0;
+}
+
+
+/* --- Títulos y Secciones --- */
 .form-section-title {
     font-weight: 600;
-    color: var(--text-header);
+    color: var(--text-header, #212529); /* Color por defecto si la variable no existe */
     margin-top: 1.5rem;
     margin-bottom: 1rem;
     padding-bottom: 0.5rem;
-    border-bottom: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color, #dee2e6); /* Color por defecto */
 }
 
-/* Ancho completo para el contenido principal */
-#main-content {
-    width: 100%;
-}
 
-/* Estilos para la búsqueda con autocompletado */
+/* --- Búsqueda de Componentes --- */
 .search-results-list {
     display: none;
     position: absolute;
     background-color: white;
-    border: 1px solid var(--border-color);
+    border: 1px solid #dee2e6;
     border-radius: 8px;
-    width: 100%;
+    width: calc(100% - 1rem); /* Ajusta el ancho para que no se desborde */
     max-height: 250px;
     overflow-y: auto;
     z-index: 1000;
@@ -31,28 +44,19 @@
 .result-item {
     padding: 0.75rem 1rem;
     cursor: pointer;
-    border-bottom: 1px solid var(--border-color);
+    border-bottom: 1px solid #e9ecef;
 }
+.result-item:last-child { border-bottom: none; }
+.result-item:hover { background-color: #f8f9fa; }
 
-.result-item:last-child {
-    border-bottom: none;
-}
 
-.result-item:hover {
-    background-color: #f8f9fa;
-}
-
-/* Estilos para la tabla de ítems */
+/* --- Tabla de Ítems del Presupuesto --- */
 #tabla-items-presupuesto .form-control,
 #tabla-items-presupuesto .form-select {
     min-width: 80px;
-    text-align: right;
     font-size: 0.9rem;
     height: auto;
     padding: 0.3rem 0.5rem;
-}
-#tabla-items-presupuesto .form-select {
-    text-align: center;
 }
 
 #tabla-items-presupuesto .precio-venta,
@@ -61,84 +65,78 @@
     text-align: right;
 }
 
-/* Contenedor de Resumen de Totales */
-.resumen-totales {
-    text-align: right;
-}
-.resumen-totales p {
-    margin: 0;
-    color: var(--text-muted);
-    font-size: 0.9rem;
-}
-.resumen-totales h4 {
-    margin: 0.25rem 0 0 0;
-    color: var(--text-header);
-}
-
-/* Tarjetas de Historial */
-.historial-card .card-header {
-    background-color: #f8f9fa;
-    cursor: pointer;
-}
-.historial-card .card-body, .historial-card .card-footer {
-    background-color: #ffffff;
-}
-
-.historial-card .card-header i {
-    transition: transform 0.2s ease-in-out;
-}
-.historial-card .card-header[aria-expanded="true"] i {
-    transform: rotate(180deg);
-}
-
-/* AGREGA ESTO EN: static/css/presupuesto_modern.css */
-
-
-
-/* Estilos para ítems de presupuesto reordenables */
-#tabla-items-presupuesto .list-group-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-}
-
-#tabla-items-presupuesto .drag-handle {
-    cursor: grab;
-    margin-right: 15px;
-    color: #adb5bd;
-}
-
-/* Estilo visual para ítems ocultos en el PDF */
-#tabla-items-presupuesto .item-oculto {
-    opacity: 0.6;
-    background-color: #f8f9fa;
-}
-
-#tabla-items-presupuesto .item-oculto .producto-nombre {
-    text-decoration: line-through;
-}
-
-/* AGREGA ESTO AL FINAL DE: static/css/presupuesto_modern.css */
-
-/* Ancho fijo para el contenido principal */
-#main-content {
-    max-width: 2000px;
-    margin-left: 240px;
-    margin-right: auto;
-}
-
-/* Estilo para el icono de arrastrar en la tabla de ítems */
+/* Icono para arrastrar */
 #tabla-items-presupuesto .drag-handle {
     cursor: grab;
     color: #adb5bd;
     font-size: 1.2rem;
 }
 
+/* Estilo para ítems ocultos en el PDF */
 #tabla-items-presupuesto tr.item-oculto {
     opacity: 0.6;
     background-color: #f8f9fa;
 }
 
-#tabla-items-presupuesto tr.item-oculto td:first-child span {
-    text-decoration: line-through;
+
+/* --- Resumen de Totales --- */
+.resumen-totales { 
+    text-align: right; 
+    min-width: 250px;
+}
+.resumen-totales p { 
+    margin: 0; 
+    color: #6c757d;
+    font-size: 0.9rem; 
+}
+.resumen-totales h4 { 
+    margin: 0.25rem 0 0 0; 
+}
+
+
+/* --- Historial de Presupuestos --- */
+.historial-card .card-header { 
+    background-color: #f8f9fa; 
+    cursor: pointer; 
+}
+.historial-card .card-body, .historial-card .card-footer { 
+    background-color: #ffffff; 
+}
+.historial-card .card-header .fa-chevron-down { 
+    transition: transform 0.2s ease-in-out; 
+}
+.historial-card .card-header:not(.collapsed) .fa-chevron-down { 
+    transform: rotate(180deg); 
+}
+
+/* AGREGA ESTO AL FINAL DE: static/css/presupuesto_modern.css */
+
+/* --- SOLUCIÓN DE ANCHO FIJO --- */
+
+/* 1. Contenedor Principal de Ancho Fijo y Grande */
+#main-content {
+    /* Define un ancho máximo grande para que el contenido no se encoja en pantallas amplias */
+    max-width: 1500px; 
+    
+    /* Mantiene el espacio para el sidebar a la izquierda */
+    margin-left: 240px; 
+
+    /* Centra el contenido si la pantalla es aún más ancha que el max-width */
+    margin-right: auto; 
+}
+
+/* 2. Forzar Ancho Fijo en las Columnas de la Tabla */
+#form-presupuesto .table {
+    /* Esta es la propiedad clave: le dice a la tabla que ignore el tamaño del contenido
+       y que respete los anchos definidos en la cabecera (thead). */
+    table-layout: fixed;
+    width: 100%; /* Asegura que la tabla ocupe todo el ancho de su contenedor */
+}
+
+/* 3. Evitar que el texto largo de los productos rompa el diseño */
+#form-presupuesto .table td {
+    /* Si un nombre de producto es muy largo, se cortará y pasará a la línea de abajo
+       en lugar de agrandar la columna. */
+    word-wrap: break-word;
+    overflow-wrap: break-word;
 }
