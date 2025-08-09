@@ -5,266 +5,377 @@
     <title>Gestión de Stock</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     
+    <!-- CSS de Bootstrap e iconos -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     
+    <!-- Tus hojas de estilo -->
     <link href="{{ url_for('static', filename='css/buscador.css') }}" rel="stylesheet">
     <link href="{{ url_for('static', filename='css/stock.css') }}" rel="stylesheet">
 </head>
 <body>
-    <div class="d-flex">
-        <div id="sidebar">
-            <div class="sidebar-title my-3 text-center">
-                <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo TheGamerShop" class="img-fluid" style="max-height: 80px;">
-            </div>
+<div class="d-flex">
+    <!-- Barra lateral -->
+    <div id="sidebar">
+        <div class="sidebar-title my-3 text-center">
+            <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo TheGamerShop" class="img-fluid" style="max-height: 80px;">
+        </div>
 
-            {% set ruta_actual = request.path %}
-            {% set es_presupuestos = ruta_actual.startswith('/presupuestos') or ruta_actual.startswith('/pcs_predeterminadas') %}
-            {% set es_stock = ruta_actual.startswith('/stock') or ruta_actual.startswith('/componentes-presupuesto') %}
-            {% set es_pedidos = ruta_actual.startswith('/pedidos') %}
+        {% set ruta_actual = request.path %}
+        {% set es_presupuestos = ruta_actual.startswith('/presupuestos') or ruta_actual.startswith('/pcs_predeterminadas') %}
+        {% set es_stock = ruta_actual.startswith('/stock') or ruta_actual.startswith('/componentes-presupuesto') %}
+        {% set es_pedidos = ruta_actual.startswith('/pedidos') %}
 
-            <ul class="nav flex-column">
-                <li class="nav-item mb-1">
-                    <a class="nav-link {% if ruta_actual == '/buscar' %}active{% endif %}" href="/buscar">
-                        <i class="fas fa-search fa-fw me-2"></i>Comparador
-                    </a>
-                </li>
-                <li class="nav-item mb-1">
-                    <a class="nav-link {% if not es_presupuestos %}collapsed{% endif %}" href="#" data-bs-toggle="collapse" data-bs-target="#presupuestos-menu" aria-expanded="{{ 'true' if es_presupuestos else 'false' }}">
-                        <i class="fas fa-file-invoice-dollar fa-fw me-2"></i>Presupuestos
-                    </a>
-                    <div class="collapse {% if es_presupuestos %}show{% endif %}" id="presupuestos-menu">
-                        <ul class="nav flex-column ms-3">
-                            <li class="nav-item"><a class="nav-link {% if ruta_actual == '/presupuestos' %}active{% endif %}" href="/presupuestos"><i class="fas fa-plus fa-fw me-2"></i>Crear presupuesto</a></li>
-                            <li class="nav-item"><a class="nav-link {% if ruta_actual == '/pcs_predeterminadas' %}active{% endif %}" href="/pcs_predeterminadas"><i class="fas fa-desktop fa-fw me-2"></i>PCs Predeterminadas</a></li>
-                        </ul>
-                    </div>
-                </li>
-                <li class="nav-item mb-1">
-                    <a class="nav-link {% if not es_stock %}collapsed{% endif %}" href="#" data-bs-toggle="collapse" data-bs-target="#stock-menu" aria-expanded="{{ 'true' if es_stock else 'false' }}">
-                        <i class="fas fa-boxes fa-fw me-2"></i>Stock y componentes
-                    </a>
-                    <div class="collapse {% if es_stock %}show{% endif %}" id="stock-menu">
-                        <ul class="nav flex-column ms-3">
-                            <li class="nav-item"><a class="nav-link {% if ruta_actual == '/stock' %}active{% endif %}" href="/stock"><i class="fas fa-list-alt fa-fw me-2"></i>Lista de stock</a></li>
-                            <li class="nav-item"><a class="nav-link {% if ruta_actual == '/componentes-presupuesto' %}active{% endif %}" href="/componentes-presupuesto"><i class="fas fa-cogs fa-fw me-2"></i>Componentes</a></li>
-                        </ul>
-                    </div>
-                </li>
-                <li class="nav-item mb-1">
-                    <a class="nav-link {% if not es_pedidos %}collapsed{% endif %}" href="#" data-bs-toggle="collapse" data-bs-target="#pedidos-menu" aria-expanded="{{ 'true' if es_pedidos else 'false' }}">
-                        <i class="fas fa-truck fa-fw me-2"></i>Pedidos
-                    </a>
-                    <div class="collapse {% if es_pedidos %}show{% endif %}" id="pedidos-menu">
-                        <ul class="nav flex-column ms-3">
-                            <li class="nav-item"><a class="nav-link {% if ruta_actual == '/pedidos' %}active{% endif %}" href="/pedidos"><i class="fas fa-plus-circle fa-fw me-2"></i>Nuevo pedido</a></li>
-                            <li class="nav-item"><a class="nav-link {% if ruta_actual == '/pedidos/lista' %}active{% endif %}" href="/pedidos/lista"><i class="fas fa-list fa-fw me-2"></i>Lista de pedidos</a></li>
-                        </ul>
-                    </div>
-                </li>
-            </ul>
+        <ul class="nav flex-column">
+            <li class="nav-item mb-1">
+                <a class="nav-link {% if ruta_actual == '/buscar' %}active{% endif %}" href="/buscar">
+                    <i class="fas fa-search fa-fw me-2"></i>Comparador
+                </a>
+            </li>
+            <li class="nav-item mb-1">
+                <a class="nav-link {% if not es_presupuestos %}collapsed{% endif %}" href="#" data-bs-toggle="collapse" data-bs-target="#presupuestos-menu" aria-expanded="{{ 'true' if es_presupuestos else 'false' }}">
+                    <i class="fas fa-file-invoice-dollar fa-fw me-2"></i>Presupuestos
+                </a>
+                <div class="collapse {% if es_presupuestos %}show{% endif %}" id="presupuestos-menu">
+                    <ul class="nav flex-column ms-3">
+                        <li class="nav-item"><a class="nav-link {% if ruta_actual == '/presupuestos' %}active{% endif %}" href="/presupuestos"><i class="fas fa-plus fa-fw me-2"></i>Crear presupuesto</a></li>
+                        <li class="nav-item"><a class="nav-link {% if ruta_actual == '/pcs_predeterminadas' %}active{% endif %}" href="/pcs_predeterminadas"><i class="fas fa-desktop fa-fw me-2"></i>PCs Predeterminadas</a></li>
+                    </ul>
+                </div>
+            </li>
+            <li class="nav-item mb-1">
+                <a class="nav-link {% if not es_stock %}collapsed{% endif %}" href="#" data-bs-toggle="collapse" data-bs-target="#stock-menu" aria-expanded="{{ 'true' if es_stock else 'false' }}">
+                    <i class="fas fa-boxes fa-fw me-2"></i>Stock y componentes
+                </a>
+                <div class="collapse {% if es_stock %}show{% endif %}" id="stock-menu">
+                    <ul class="nav flex-column ms-3">
+                        <li class="nav-item"><a class="nav-link {% if ruta_actual == '/stock' %}active{% endif %}" href="/stock"><i class="fas fa-list-alt fa-fw me-2"></i>Lista de stock</a></li>
+                        <li class="nav-item"><a class="nav-link {% if ruta_actual == '/componentes-presupuesto' %}active{% endif %}" href="/componentes-presupuesto"><i class="fas fa-cogs fa-fw me-2"></i>Componentes</a></li>
+                    </ul>
+                </div>
+            </li>
+            <li class="nav-item mb-1">
+                <a class="nav-link {% if not es_pedidos %}collapsed{% endif %}" href="#" data-bs-toggle="collapse" data-bs-target="#pedidos-menu" aria-expanded="{{ 'true' if es_pedidos else 'false' }}">
+                    <i class="fas fa-truck fa-fw me-2"></i>Pedidos
+                </a>
+                <div class="collapse {% if es_pedidos %}show{% endif %}" id="pedidos-menu">
+                    <ul class="nav flex-column ms-3">
+                        <li class="nav-item"><a class="nav-link {% if ruta_actual == '/pedidos' %}active{% endif %}" href="/pedidos"><i class="fas fa-plus-circle fa-fw me-2"></i>Nuevo pedido</a></li>
+                        <li class="nav-item"><a class="nav-link {% if ruta_actual == '/pedidos/lista' %}active{% endif %}" href="/pedidos/lista"><i class="fas fa-list fa-fw me-2"></i>Lista de pedidos</a></li>
+                    </ul>
+                </div>
+            </li>
+        </ul>
 
-            <div class="mt-auto p-3 text-white small">
-                <i class="fas fa-dollar-sign me-1"></i>Oficial: (Dólar Oficial)<br>
-                <i class="fas fa-hand-holding-usd me-1"></i>Blue: (Dólar Blue)
+        <div class="mt-auto p-3 text-white small">
+            <i class="fas fa-dollar-sign me-1"></i>Oficial: (Dólar Oficial)<br>
+            <i class="fas fa-hand-holding-usd me-1"></i>Blue: (Dólar Blue)
+        </div>
+    </div>
+
+    <!-- Contenido principal -->
+    <div id="main-content">
+        <!-- Barra superior -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>Gestión de Stock</h1>
+            <div class="d-flex gap-2">
+                <button class="btn btn-outline-secondary" onclick="abrirModalHistorial()"><i class="fas fa-history me-2"></i>Historial</button>
+                <button class="btn btn-primary" onclick="abrirModalNuevoProducto()"><i class="fas fa-plus me-2"></i>Nuevo Tipo de Producto</button>
+                <button class="btn btn-outline-info" data-bs-toggle="modal" data-bs-target="#modalConfiguracionStock"><i class="fas fa-wrench me-2"></i>Configurar</button>
+                <!-- Nuevo botón de Egreso rápido -->
+                <button class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#modalEgresoRapido"><i class="fas fa-truck-loading me-2"></i>Egreso rápido</button>
+                <!-- Botones de exportar e importar -->
+                <button id="btnExportarExcel" class="btn btn-outline-secondary"><i class="fas fa-file-export me-2"></i>Exportar</button>
+                <button id="btnImportarExcel" class="btn btn-outline-secondary"><i class="fas fa-file-import me-2"></i>Importar</button>
+                <input type="file" id="archivoExcelInput" style="display:none" accept=".xlsx,.xls,.csv"/>
             </div>
         </div>
 
-        <div id="main-content">
-            <div class="d-flex justify-content-between align-items-center mb-4">
-                <h1>Gestión de Stock</h1>
-                <div>
-                    <button class="btn btn-outline-secondary" onclick="abrirModalHistorial()"><i class="fas fa-history me-2"></i>Historial</button>
-                    <button class="btn btn-primary" onclick="abrirModalNuevoProducto()"><i class="fas fa-plus me-2"></i>Nuevo Tipo de Producto</button>
-                    <button class="btn btn-outline-info" data-bs-toggle="modal" data-bs-target="#modalConfiguracionStock"><i class="fas fa-wrench me-2"></i>Configurar</button>
-                </div>
-            </div>
-
-            <div class="card card-body mb-4">
-                <h5 class="mb-3">Utilidad de Lector de Códigos</h5>
-                <div class="row g-3">
-                    <div class="col-md-5">
-                        <div class="input-group">
-                            <span class="input-group-text"><i class="fas fa-barcode"></i></span>
-                            <input type="text" id="lectorSku" class="form-control" placeholder="Escanear o tipear SKU y presionar Enter...">
-                        </div>
-                    </div>
-                    <div class="col-md-7">
-                        <div id="panelAccionSku" class="d-none alert alert-info p-2 d-flex justify-content-between align-items-center">
-                            <strong id="nombreProductoSku"></strong>
-                            <div>
-                                <button class="btn btn-success btn-sm" onclick="ingresarStockPorSku()"><i class="fas fa-plus"></i> Ingresar SN</button>
-                                <button class="btn btn-info btn-sm" onclick="verItemsPorSku()"><i class="fas fa-eye"></i> Ver Items</button>
-                            </div>
-                        </div>
-                        <div id="alertaSku" class="d-none alert alert-danger p-2"></div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="card card-body mb-4">
-                <h5 class="mb-3">Filtros de Búsqueda</h5>
-                <div class="col-12">
+        <!-- Lector de SKU -->
+        <div class="card card-body mb-4">
+            <h5 class="mb-3">Utilidad de Lector de Códigos</h5>
+            <div class="row g-3">
+                <div class="col-md-5">
                     <div class="input-group">
-                        <span class="input-group-text"><i class="fas fa-search"></i></span>
-                        <input type="text" id="buscador-general" class="form-control" placeholder="Buscar por SKU, S/N, Producto, Marca, Categoría...">
+                        <span class="input-group-text"><i class="fas fa-barcode"></i></span>
+                        <input type="text" id="lectorSku" class="form-control" placeholder="Escanear o tipear SKU y presionar Enter...">
                     </div>
                 </div>
-
-                 
-                 <div class="row g-3">
-                    <div class="col-md-3">
-                        <label for="filtro-marca" class="form-label">Marca</label>
-                        <select id="filtro-marca" class="form-select"><option value="">Todas</option></select>
-                    </div>
-                    <div class="col-md-3">
-                        <label for="filtro-categoria" class="form-label">Categoría</label>
-                        <select id="filtro-categoria" class="form-select"><option value="">Todas</option></select>
-                    </div>
-                    <div class="col-md-3">
-                        <label for="filtro-deposito" class="form-label">Depósito</label>
-                        <select id="filtro-deposito" class="form-select"><option value="">Todos</option></select>
-                    </div>
-                    <div class="col-md-3 d-flex align-items-end">
-                        <div class="form-check form-switch me-auto">
-                            <input class="form-check-input" type="checkbox" id="filtro-disponibles">
-                            <label class="form-check-label" for="filtro-disponibles">Mostrar solo con stock</label>
+                <div class="col-md-7">
+                    <!-- Acciones basadas en SKU -->
+                    <div id="panelAccionSku" class="d-none alert alert-info p-2 d-flex justify-content-between align-items-center">
+                        <strong id="nombreProductoSku"></strong>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-success btn-sm" onclick="ingresarStockPorSku()"><i class="fas fa-plus"></i> Ingresar SN</button>
+                            <button class="btn btn-info btn-sm" onclick="verItemsPorSku()"><i class="fas fa-eye"></i> Ver Items</button>
+                            <button id="btnEgresarSku" class="btn btn-danger btn-sm"><i class="fas fa-minus"></i> Egresar</button>
                         </div>
-                        <button id="btn-limpiar-filtros" class="btn btn-outline-secondary">Limpiar</button>
                     </div>
+                    <div id="alertaSku" class="d-none alert alert-danger p-2"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filtros de búsqueda -->
+        <div class="card card-body mb-4">
+            <h5 class="mb-3">Filtros de Búsqueda</h5>
+            <div class="col-12 mb-3">
+                <div class="input-group">
+                    <span class="input-group-text"><i class="fas fa-search"></i></span>
+                    <input type="text" id="buscador-general" class="form-control" placeholder="Buscar por SKU, S/N, Producto, Marca, Categoría...">
                 </div>
             </div>
 
-            <div id="filtros-activos-container" class="mb-3" style="display: none;">
-                <strong>Filtros aplicados:</strong>
-                <span id="filtros-activos" class="d-inline-flex flex-wrap gap-2 mt-1"></span>
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label for="filtro-marca" class="form-label">Marca</label>
+                    <select id="filtro-marca" class="form-select"><option value="">Todas</option></select>
+                </div>
+                <div class="col-md-3">
+                    <label for="filtro-categoria" class="form-label">Categoría</label>
+                    <select id="filtro-categoria" class="form-select"><option value="">Todas</option></select>
+                </div>
+                <div class="col-md-3">
+                    <label for="filtro-deposito" class="form-label">Depósito</label>
+                    <select id="filtro-deposito" class="form-select"><option value="">Todos</option></select>
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <div class="form-check form-switch me-auto">
+                        <input class="form-check-input" type="checkbox" id="filtro-disponibles">
+                        <label class="form-check-label" for="filtro-disponibles">Mostrar solo con stock</label>
+                    </div>
+                    <button id="btn-limpiar-filtros" class="btn btn-outline-secondary">Limpiar</button>
+                </div>
             </div>
+        </div>
 
-            <div class="card card-body">
+        <!-- Filtros activos -->
+        <div id="filtros-activos-container" class="mb-3" style="display: none;">
+            <strong>Filtros aplicados:</strong>
+            <span id="filtros-activos" class="d-inline-flex flex-wrap gap-2 mt-1"></span>
+        </div>
+
+        <!-- Tabla de productos -->
+        <div class="card card-body">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead>
+                        <tr>
+                            <th class="sortable" data-sort="sku">SKU <i class="fas fa-sort"></i></th>
+                            <th class="sortable" data-sort="nombre">Producto <i class="fas fa-sort"></i></th>
+                            <th class="sortable" data-sort="marca">Marca <i class="fas fa-sort"></i></th>
+                            <th class="sortable" data-sort="categoria">Categoría <i class="fas fa-sort"></i></th>
+                            <th class="sortable text-center" data-sort="cantidad_disponible">Cant. Disp. <i class="fas fa-sort"></i></th>
+                            <th class="sortable" data-sort="precio_venta_sugerido">Precio Sug. <i class="fas fa-sort"></i></th>
+                            <th class="sortable" data-sort="ultima_modificacion">Últ. Modif. <i class="fas fa-sort"></i></th>
+                            <th class="text-end">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabla-stock-productos"></tbody>
+                </table>
+            </div>
+        </div>
+    </div> <!-- fin contenido principal -->
+</div> <!-- fin d-flex -->
+
+<!-- Modal: Agregar o Editar Tipo de Producto -->
+<div class="modal fade" id="modalAgregarProducto" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalProductoTitle"></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editProductId">
+                <div class="mb-3">
+                    <label for="nuevoSku" class="form-label">SKU (Código único)</label>
+                    <input type="text" id="nuevoSku" class="form-control">
+                </div>
+                <div class="mb-3">
+                    <label for "nuevoNombre" class="form-label">Nombre del Producto</label>
+                    <input type="text" id="nuevoNombre" class="form-control">
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="nuevaMarca" class="form-label">Marca</label>
+                        <select id="nuevaMarca" class="form-select"></select>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label for="nuevaCategoria" class="form-label">Categoría</label>
+                        <select id="nuevaCategoria" class="form-select"></select>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label for="nuevoPrecio" class="form-label">Precio de Venta Sugerido</label>
+                    <input type="number" id="nuevoPrecio" class="form-control" placeholder="0.00">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="guardarProducto()">Guardar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Ver Items -->
+<div class="modal fade" id="modalVerItems" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Items de: <span id="nombreProductoEnModal"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="p-3 mb-4 bg-light-sutil border rounded">
+                    <h6 class="mb-3">Agregar Nuevos Items</h6>
+                    <div class="row g-2 align-items-end" id="formAgregarItem">
+                        <div class="col-md-6">
+                            <label for="nuevosSns" class="form-label">Números de Serie (uno por línea)</label>
+                            <textarea id="nuevosSns" class="form-control" rows="4" placeholder="SN12345&#10;SN12346&#10;..."></textarea>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="nuevoCosto" class="form-label">Costo (c/u)</label>
+                            <input type="number" id="nuevoCosto" class="form-control" placeholder="0.00">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="nuevoDepositoItem" class="form-label">Depósito</label>
+                            <select id="nuevoDepositoItem" class="form-select"></select>
+                        </div>
+                        <div class="col-12">
+                            <button class="btn btn-success w-100 mt-2" onclick="guardarNuevosItems()">Agregar Items</button>
+                        </div>
+                    </div>
+                </div>
+                <h6>Items Individuales en Stock</h6>
                 <div class="table-responsive">
-                    <table class="table table-hover align-middle">
-                        <thead>
-                            <tr>
-                                <th class="sortable" data-sort="sku">SKU <i class="fas fa-sort"></i></th>
-                                <th class="sortable" data-sort="nombre">Producto <i class="fas fa-sort"></i></th>
-                                <th class="sortable" data-sort="marca">Marca <i class="fas fa-sort"></i></th>
-                                <th class="sortable" data-sort="categoria">Categoría <i class="fas fa-sort"></i></th>
-                                <th class="sortable text-center" data-sort="cantidad_disponible">Cant. Disp. <i class="fas fa-sort"></i></th>
-                                <th class="sortable" data-sort="precio_venta_sugerido">Precio Sug. <i class="fas fa-sort"></i></th>
-                                <th class="sortable" data-sort="ultima_modificacion">Últ. Modif. <i class="fas fa-sort"></i></th>
-                                <th class="text-end">Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tabla-stock-productos"></tbody>
+                    <table class="table table-sm table-striped table-bordered">
+                        <thead><tr><th>ID</th><th>SN</th><th>Estado</th><th>Costo</th><th>Depósito</th><th>Últ. Mov.</th><th class="text-end col-acciones">Acciones</th></tr></thead>
+                        <tbody id="tabla-items-individuales"></tbody>
                     </table>
                 </div>
             </div>
         </div>
     </div>
-    
-    <div class="modal fade" id="modalAgregarProducto" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header"><h5 class="modal-title" id="modalProductoTitle"></h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-                <div class="modal-body">
-                    <input type="hidden" id="editProductId">
-                    <div class="mb-3"><label for="nuevoSku" class="form-label">SKU (Código único)</label><input type="text" id="nuevoSku" class="form-control"></div>
-                    <div class="mb-3"><label for="nuevoNombre" class="form-label">Nombre del Producto</label><input type="text" id="nuevoNombre" class="form-control"></div>
-                    <div class="row">
-                        <div class="col-md-6 mb-3"><label for="nuevaMarca" class="form-label">Marca</label><select id="nuevaMarca" class="form-select"></select></div>
-                        <div class="col-md-6 mb-3"><label for="nuevaCategoria" class="form-label">Categoría</label><select id="nuevaCategoria" class="form-select"></select></div>
-                    </div>
-                    <div class="mb-3"><label for="nuevoPrecio" class="form-label">Precio de Venta Sugerido</label><input type="number" id="nuevoPrecio" class="form-control" placeholder="0.00"></div>
+</div>
+
+<!-- Modal: Editar Item -->
+<div class="modal fade" id="modalEditarItem" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Editar Item</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editItemId">
+                <p>Editando item con SN: <strong id="editItemSn"></strong></p>
+                <div class="mb-3">
+                    <label for="editItemEstado" class="form-label">Estado</label>
+                    <select id="editItemEstado" class="form-select"></select>
                 </div>
-                <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button type="button" class="btn btn-primary" onclick="guardarProducto()">Guardar</button></div>
+                <div class="mb-3">
+                    <label for="editItemDeposito" class="form-label">Depósito</label>
+                    <select id="editItemDeposito" class="form-select"></select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="guardarCambiosItem()">Guardar Cambios</button>
             </div>
         </div>
     </div>
+</div>
 
-    <div class="modal fade" id="modalVerItems" tabindex="-1">
-        <div class="modal-dialog modal-xl">
-            <div class="modal-content">
-                <div class="modal-header"><h5 class="modal-title">Items de: <span id="nombreProductoEnModal"></span></h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-                <div class="modal-body">
-                    <div class="p-3 mb-4 bg-light-sutil border rounded">
-                        <h6 class="mb-3">Agregar Nuevos Items</h6>
-                        <div class="row g-2 align-items-end" id="formAgregarItem">
-                            <div class="col-md-6"><label for="nuevosSns" class="form-label">Números de Serie (uno por línea)</label><textarea id="nuevosSns" class="form-control" rows="4" placeholder="SN12345&#10;SN12346&#10;..."></textarea></div>
-                            <div class="col-md-3"><label for="nuevoCosto" class="form-label">Costo (c/u)</label><input type="number" id="nuevoCosto" class="form-control" placeholder="0.00"></div>
-                            <div class="col-md-3"><label for="nuevoDepositoItem" class="form-label">Depósito</label><select id="nuevoDepositoItem" class="form-select"></select></div>
-                            <div class="col-12"><button class="btn btn-success w-100 mt-2" onclick="guardarNuevosItems()">Agregar Items</button></div>
+<!-- Modal: Historial -->
+<div class="modal fade" id="modalHistorial" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Historial de Movimientos</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="table-responsive">
+                    <table class="table table-sm table-striped">
+                        <thead><tr><th>Fecha</th><th>Acción</th><th>Producto</th><th>Detalles</th></tr></thead>
+                        <tbody id="tabla-historial-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Configuraciones de Stock -->
+<div class="modal fade" id="modalConfiguracionStock" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Configuraciones de Stock</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <h6>Marcas</h6>
+                        <ul class="list-group mb-2" id="lista-marcas"></ul>
+                        <div class="input-group">
+                            <input type="text" id="nueva-marca" class="form-control">
+                            <button class="btn btn-outline-primary" onclick="agregarConfig('marca')">+</button>
                         </div>
                     </div>
-                    <h6>Items Individuales en Stock</h6>
-                    <div class="table-responsive"><table class="table table-sm table-striped table-bordered"><thead><tr><th>ID</th><th>SN</th><th>Estado</th><th>Costo</th><th>Depósito</th><th>Últ. Mov.</th><th class="text-end col-acciones">Acciones</th></tr></thead><tbody id="tabla-items-individuales"></tbody></table></div>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="modal fade" id="modalEditarItem" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Editar Item</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <input type="hidden" id="editItemId">
-                    <p>Editando item con SN: <strong id="editItemSn"></strong></p>
-                    <div class="mb-3">
-                        <label for="editItemEstado" class="form-label">Estado</label>
-                        <select id="editItemEstado" class="form-select"></select>
+                    <div class="col-md-4">
+                        <h6>Categorías</h6>
+                        <ul class="list-group mb-2" id="lista-categorias"></ul>
+                        <div class="input-group">
+                            <input type="text" id="nueva-categoria" class="form-control">
+                            <button class="btn btn-outline-primary" onclick="agregarConfig('categoria')">+</button>
+                        </div>
                     </div>
-                    <div class="mb-3">
-                        <label for="editItemDeposito" class="form-label">Depósito</label>
-                        <select id="editItemDeposito" class="form-select"></select>
+                    <div class="col-md-4">
+                        <h6>Depósitos</h6>
+                        <ul class="list-group mb-2" id="lista-depositos"></ul>
+                        <div class="input-group">
+                            <input type="text" id="nueva-deposito" class="form-control">
+                            <button class="btn btn-outline-primary" onclick="agregarConfig('deposito')">+</button>
+                        </div>
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="button" class="btn btn-primary" onclick="guardarCambiosItem()">Guardar Cambios</button>
-                </div>
             </div>
         </div>
     </div>
-    <div class="modal fade" id="modalHistorial" tabindex="-1">
-        <div class="modal-dialog modal-xl">
-            <div class="modal-content">
-                <div class="modal-header"><h5 class="modal-title">Historial de Movimientos</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-                <div class="modal-body">
-                    <div class="table-responsive"><table class="table table-sm table-striped"><thead><tr><th>Fecha</th><th>Acción</th><th>Producto</th><th>Detalles</th></tr></thead><tbody id="tabla-historial-body"></tbody></table></div>
+</div>
+
+<!-- Modal: Egreso rápido (nuevo) -->
+<div class="modal fade" id="modalEgresoRapido" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Egreso rápido de ítems</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="lectorSnEgreso" class="form-label">Escanee o ingrese números de serie (SN)</label>
+                    <input type="text" id="lectorSnEgreso" class="form-control" placeholder="Escanea un SN y presiona Enter...">
                 </div>
+                <table class="table table-sm">
+                    <thead><tr><th>SN</th><th>Producto</th><th>Acciones</th></tr></thead>
+                    <tbody id="tabla-egreso-items"></tbody>
+                </table>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                <button type="button" class="btn btn-danger" id="btnConfirmarEgreso">Egresar todos</button>
             </div>
         </div>
     </div>
-    <div class="modal fade" id="modalConfiguracionStock" tabindex="-1">
-      <div class="modal-dialog modal-lg">
-          <div class="modal-content">
-              <div class="modal-header"><h5 class="modal-title">Configuraciones de Stock</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-              <div class="modal-body">
-                  <div class="row">
-                      <div class="col-md-4">
-                          <h6>Marcas</h6>
-                          <ul class="list-group mb-2" id="lista-marcas"></ul>
-                          <div class="input-group"><input type="text" id="nueva-marca" class="form-control"><button class="btn btn-outline-primary" onclick="agregarConfig('marca')">+</button></div>
-                      </div>
-                      <div class="col-md-4">
-                          <h6>Categorías</h6>
-                          <ul class="list-group mb-2" id="lista-categorias"></ul>
-                          <div class="input-group"><input type="text" id="nueva-categoria" class="form-control"><button class="btn btn-outline-primary" onclick="agregarConfig('categoria')">+</button></div>
-                      </div>
-                      <div class="col-md-4">
-                          <h6>Depósitos</h6>
-                          <ul class="list-group mb-2" id="lista-depositos"></ul>
-                          <div class="input-group"><input type="text" id="nueva-deposito" class="form-control"><button class="btn btn-outline-primary" onclick="agregarConfig('deposito')">+</button></div>
-                      </div>
-                  </div>
-              </div>
-          </div>
-      </div>
-    </div>
-    
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="{{ url_for('static', filename='js/stock.js') }}"></script>
+</div>
+
+<!-- Scripts -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="{{ url_for('static', filename='js/stock.js') }}"></script>
 </body>
 </html>

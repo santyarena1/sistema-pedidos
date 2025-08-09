@@ -134,3 +134,39 @@ body {
     padding: 2px;
     border: 1px solid #ddd;
 }
+
+.tgs-resaltado {
+    border-left: 4px solid red;
+    background-color: #ffeaea;
+}
+
+/* AGREGA esto al final de: static/css/buscador.css */
+
+#tabla-resultados tr.highlight-tgs td {
+    background-color: #f8d7da; /* Fondo rojo claro */
+    font-weight: 500;
+}
+
+#tabla-resultados tr.highlight-tgs {
+    /* Borde rojo más grueso para destacar toda la fila */
+    border: 2px solid var(--accent-red) !important; 
+}
+
+/* Imagen en blanco / sin roturas */
+.img-ph{
+    width: 60px; height: 60px;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+  
+/* Resaltado TGS ya existe; reforzamos borde y leve sombra */
+#tabla-resultados tr.highlight-tgs td{
+    background-color: #f8d7da;
+    font-weight: 600;
+}
+#tabla-resultados tr.highlight-tgs{
+    border: 2px solid var(--accent-red) !important;
+    box-shadow: 0 0 0 2px rgba(217,4,41,0.08) inset;
+}
+  

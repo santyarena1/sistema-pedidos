@@ -1,18 +1,33 @@
+# REEMPLAZA todas las líneas de importación al principio de: routes/stock_routes.py
+
 import time
 import os
+import io # Para manejar el PDF en memoria
+import json # Para el registro de movimientos
 from flask import Blueprint, request, jsonify, render_template, send_file
 from db.connection import get_db_connection
 import psycopg2.extras
-from io import BytesIO
+
+# Librerías para generar el PDF de etiquetas
+from jinja2 import Environment, FileSystemLoader
+from weasyprint import HTML, CSS
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import mm
 from reportlab.lib.units import mm
 from reportlab.lib.utils import ImageReader
-from reportlab.pdfbase.pdfmetrics import stringWidth  # <-- ¡ESTA ES LA IMPORTACIÓN QUE FALTABA!
+from reportlab.pdfbase.pdfmetrics import stringWidth
+
+# Librerías para generar los códigos de barras
 import barcode
-from barcode.writer import ImageWriter
+from barcode.writer import ImageWriter, SVGWriter # <-- CORRECCIÓN PRINCIPAL AQUÍ
+import xlsxwriter
+from io import BytesIO
+
+
 
 stock_bp = Blueprint("stock", __name__)
+
+
 
 # --- FUNCIÓN DE REGISTRO DE MOVIMIENTOS ---
 def registrar_movimiento(cur, producto_nombre, accion, detalles, item_id=None):
@@ -34,14 +49,15 @@ def vista_stock():
 
 # --- API para TIPOS de Producto (la vista general) ---
 
+# REEMPLAZA tu función obtener_productos_stock en: routes/stock_routes.py
+
 @stock_bp.route("/api/stock/productos", methods=["GET"])
 def obtener_productos_stock():
     """
-    [MODIFICADO] Devuelve la lista de productos con capacidades avanzadas de 
+    Devuelve la lista de productos con capacidades avanzadas de
     filtrado, ordenamiento y BÚSQUEDA GENERAL.
     """
-    # Recoger parámetros de la URL
-    q = request.args.get('q')  # <-- Parámetro para la búsqueda general
+    q = request.args.get('q')
     marca = request.args.get('marca')
     categoria = request.args.get('categoria')
     deposito = request.args.get('deposito')
@@ -50,7 +66,7 @@ def obtener_productos_stock():
     sort_order = request.args.get('sortOrder', 'asc')
 
     params = []
-    
+
     base_query = """
         SELECT
             p.id, p.sku, p.nombre, p.precio_venta_sugerido, p.marca, p.categoria, p.ultima_modificacion,
@@ -58,23 +74,20 @@ def obtener_productos_stock():
         FROM stock_productos p
         LEFT JOIN stock_items i ON p.id = i.producto_id
     """
-    
+
     where_clauses = []
-    
-    # --- Lógica de Búsqueda General ---
+
     if q:
         search_term = f"%{q}%"
-        # Buscamos en los campos del producto O si existe un item con ese SN
         where_clauses.append("""
-            (p.sku ILIKE %s OR 
-             p.nombre ILIKE %s OR 
-             p.marca ILIKE %s OR 
+            (p.sku ILIKE %s OR
+             p.nombre ILIKE %s OR
+             p.marca ILIKE %s OR
              p.categoria ILIKE %s OR
              p.id IN (SELECT producto_id FROM stock_items WHERE serial_number ILIKE %s))
         """)
-        params.extend([search_term] * 5) # Añadimos el término 5 veces, una por cada '?'
-    
-    # --- Lógica de Filtros Específicos ---
+        params.extend([search_term] * 5)
+
     if marca:
         where_clauses.append("p.marca = %s")
         params.append(marca)
@@ -87,13 +100,12 @@ def obtener_productos_stock():
 
     if where_clauses:
         base_query += " WHERE " + " AND ".join(where_clauses)
-        
+
     base_query += " GROUP BY p.id"
-    
+
     if disponibles == 'true':
         base_query += " HAVING COUNT(i.id) FILTER (WHERE i.estado = 'Disponible') > 0"
 
-    # Lógica de ordenamiento
     allowed_sort_columns = ['sku', 'nombre', 'marca', 'categoria', 'cantidad_disponible', 'precio_venta_sugerido', 'ultima_modificacion']
     if sort_by not in allowed_sort_columns: sort_by = 'nombre'
     sort_order = 'DESC' if sort_order.lower() == 'desc' else 'ASC'
@@ -111,17 +123,19 @@ def obtener_productos_stock():
     finally:
         if conn: conn.close()
 
-# REEMPLAZAR en: routes/stock_routes.py
-def generar_sku(nombre, categoria):
-    """Genera un SKU único a partir del nombre y la categoría del producto."""
-    if not nombre or not categoria:
+def generar_sku(categoria, marca):
+    """
+    Genera un SKU único tomando las tres primeras letras de la categoría y las tres primeras de la marca,
+    más los cuatro últimos dígitos del timestamp.
+    """
+    if not categoria or not marca:
         return ""
-    # Tomamos las 3 primeras letras de la categoría y las 3 primeras del nombre
     prefijo_cat = categoria[:3].upper()
-    prefijo_prod = nombre[:3].upper()
-    # Usamos los últimos 4 dígitos del timestamp para asegurar que sea único
+    prefijo_marca = marca[:3].upper()
     timestamp = str(int(time.time()))[-4:]
-    return f"{prefijo_cat}-{prefijo_prod}-{timestamp}"
+    return f"{prefijo_cat}-{prefijo_marca}-{timestamp}"
+
+
 
 @stock_bp.route("/api/stock/productos", methods=["POST"])
 def agregar_producto():
@@ -130,20 +144,21 @@ def agregar_producto():
     conn = get_db_connection()
     try:
         with conn.cursor() as cur:
-            # Generamos el SKU automáticamente ignorando lo que venga del front
             nombre = data.get('nombre')
+            marca = data.get('marca')
             categoria = data.get('categoria')
-            sku = generar_sku(nombre, categoria)
+            # Generamos el SKU tomando marca y categoría
+            sku = generar_sku(categoria, marca)
 
             cur.execute(
                 """
                 INSERT INTO stock_productos (sku, nombre, precio_venta_sugerido, marca, categoria)
                 VALUES (%s, %s, %s, %s, %s) RETURNING id
                 """,
-                (sku, nombre, data.get('precio_venta_sugerido'), data.get('marca'), categoria)
+                (sku, nombre, data.get('precio_venta_sugerido'), marca, categoria)
             )
             producto_id = cur.fetchone()[0]
-            registrar_movimiento(cur, data.get('nombre'), "CREADO", f"Producto '{data.get('nombre')}' creado con éxito. SKU: {sku}")
+            registrar_movimiento(cur, nombre, "CREADO", f"Producto '{nombre}' creado con éxito. SKU: {sku}")
             conn.commit()
         return jsonify({"mensaje": "Tipo de producto creado con éxito", "id": producto_id}), 201
     except Exception as e:
@@ -151,6 +166,8 @@ def agregar_producto():
         return jsonify({"error": str(e)}), 500
     finally:
         if conn: conn.close()
+
+
 
 @stock_bp.route("/api/stock/productos/<int:producto_id>", methods=["PATCH"])
 def editar_producto(producto_id):
@@ -307,123 +324,6 @@ def gestionar_config(tipo):
 
 
 
-
-
-# --- API para ITEMS Individuales (con Número de Serie) ---
-
-@stock_bp.route("/api/stock/productos/<int:producto_id>/items", methods=["GET"])
-def obtener_items_de_producto(producto_id):
-    """
-    Devuelve todos los items individuales (con sus SNs) de un producto específico.
-    """
-    conn = get_db_connection()
-    try:
-        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
-            cur.execute("""
-                SELECT id, serial_number, estado, costo, deposito, ultima_modificacion 
-                FROM stock_items 
-                WHERE producto_id = %s 
-                ORDER BY id ASC
-            """, (producto_id,))
-            items = [dict(row) for row in cur.fetchall()]
-        return jsonify(items)
-    except Exception as e:
-        print(f"Error en obtener_items_de_producto: {e}")
-        return jsonify({"error": "Error interno del servidor al obtener items"}), 500
-    finally:
-        if conn:
-            conn.close()
-
-
-@stock_bp.route("/api/stock/items", methods=["POST"])
-def agregar_items():
-    """
-    Agrega uno o más items físicos (SNs) a un producto existente.
-    """
-    data = request.get_json()
-    conn = get_db_connection()
-    try:
-        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
-            producto_id = data.get('producto_id')
-            serial_numbers = data.get('serial_numbers', [])
-            
-            # Buscamos el nombre del producto para registrarlo en el historial
-            cur.execute("SELECT nombre FROM stock_productos WHERE id = %s", (producto_id,))
-            producto_nombre_row = cur.fetchone()
-            producto_nombre = producto_nombre_row['nombre'] if producto_nombre_row else "Producto Desconocido"
-
-            items_a_insertar = []
-            for sn in serial_numbers:
-                if sn: # Nos aseguramos de no insertar strings vacíos
-                    items_a_insertar.append((
-                        producto_id, 
-                        sn, 
-                        data.get('costo'), 
-                        data.get('deposito')
-                    ))
-
-            if not items_a_insertar:
-                return jsonify({"error": "No se proporcionaron números de serie válidos."}), 400
-
-            psycopg2.extras.execute_batch(
-                cur,
-                "INSERT INTO stock_items (producto_id, serial_number, costo, deposito) VALUES (%s, %s, %s, %s)",
-                items_a_insertar
-            )
-            
-            # Actualizamos la fecha de última modificación del producto "padre"
-            cur.execute("UPDATE stock_productos SET ultima_modificacion = NOW() WHERE id = %s", (producto_id,))
-            
-            # Aquí podrías volver a agregar la llamada al historial si la tienes definida
-            # registrar_movimiento(cur, producto_nombre, "INGRESO", f"{len(items_a_insertar)} items agregados.")
-            
-            conn.commit()
-            
-        return jsonify({"mensaje": f"{len(items_a_insertar)} items agregados con éxito"}), 201
-    except Exception as e:
-        if conn: conn.rollback()
-        print(f"Error en agregar_items: {e}")
-        return jsonify({"error": str(e)}), 500
-    finally:
-        if conn: conn.close()
-
-@stock_bp.route("/api/stock/items/<int:item_id>", methods=["PATCH"])
-def editar_item(item_id):
-    """
-    [MEJORADO] Edita los detalles de un item de stock individual (estado y/o depósito).
-    """
-    data = request.get_json()
-    conn = get_db_connection()
-    try:
-        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
-            # Obtenemos los datos actuales para el historial
-            cur.execute("SELECT p.nombre as producto_nombre FROM stock_items i JOIN stock_productos p ON i.producto_id = p.id WHERE i.id = %s", (item_id,))
-            item_info = cur.fetchone()
-
-            if not item_info:
-                return jsonify({"error": "Item no encontrado"}), 404
-
-            # Actualizamos el item con los nuevos datos
-            # Nota: El costo ya no se actualiza desde aquí.
-            cur.execute(
-                "UPDATE stock_items SET estado = %s, deposito = %s, ultima_modificacion = NOW() WHERE id = %s",
-                (data.get('estado'), data.get('deposito'), item_id)
-            )
-
-            # Registramos el movimiento en el historial
-            detalles = f"Item ID {item_id} actualizado. Nuevo estado: {data.get('estado')}, Nuevo depósito: {data.get('deposito')}."
-            registrar_movimiento(cur, item_info['producto_nombre'], "ITEM EDITADO", detalles, item_id=item_id)
-
-            conn.commit()
-        return jsonify({"mensaje": "Item actualizado con éxito"}), 200
-    except Exception as e:
-        if conn: conn.rollback()
-        print(f"Error en editar_item: {e}")
-        return jsonify({"error": str(e)}), 500
-    finally:
-        if conn: conn.close()
-
-
 @stock_bp.route("/api/stock/items/<int:item_id>", methods=["DELETE"])
 def eliminar_item(item_id):
     """
@@ -486,7 +386,7 @@ def generar_etiquetas_pdf(producto_id):
         # Opciones para que el código de barras se ajuste bien a la etiqueta
         options = {"module_height": 7.0, "font_size": 10, "text_distance": 2.0, "quiet_zone": 1.0}
 
-        sku_barcode_svg = code128(sku_producto, writer=SVGWriter()).render(options)
+        sku_barcode_svg = code128(sku_producto, writer=_Writer()).render(options)
         
         items_con_barcode = []
         for item in items:
@@ -494,7 +394,7 @@ def generar_etiquetas_pdf(producto_id):
             if sn:
                 items_con_barcode.append({
                     'sn': sn,
-                    'sn_barcode_svg': code128(sn, writer=SVGWriter()).render(options)
+                    'sn_barcode_svg': code128(sn, writer=_Writer()).render(options)
                 })
 
         # 4. Renderizamos el HTML con los SVGs
@@ -736,3 +636,438 @@ def get_depositos():
             return jsonify(depositos)
     finally:
         if conn: conn.close()
+
+
+
+@stock_bp.route("/api/stock/items", methods=["POST"])
+def agregar_items():
+    """
+    Agrega uno o más items físicos (SNs) a un producto existente.
+    """
+    data = request.get_json()
+    conn = get_db_connection()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            producto_id = data.get('producto_id')
+            serial_numbers = data.get('serial_numbers', [])
+
+            # Buscamos el nombre del producto para registrarlo en el historial
+            cur.execute("SELECT nombre FROM stock_productos WHERE id = %s", (producto_id,))
+            producto_nombre_row = cur.fetchone()
+            producto_nombre = producto_nombre_row['nombre'] if producto_nombre_row else "Producto Desconocido"
+
+            items_a_insertar = []
+            for sn in serial_numbers:
+                if sn: # Nos aseguramos de no insertar strings vacíos
+                    items_a_insertar.append((
+                        producto_id,
+                        sn,
+                        data.get('costo'),
+                        data.get('deposito')
+                    ))
+
+            if not items_a_insertar:
+                return jsonify({"error": "No se proporcionaron números de serie válidos."}), 400
+
+            psycopg2.extras.execute_batch(
+                cur,
+                "INSERT INTO stock_items (producto_id, serial_number, costo, deposito) VALUES (%s, %s, %s, %s)",
+                items_a_insertar
+            )
+            # Después de insertar los ítems y actualizar la fecha de modificación:
+            
+            registrar_movimiento(
+                cur,
+                producto_nombre,
+                "INGRESO",
+                f"{len(items_a_insertar)} items agregados.",
+            )
+            conn.commit()
+
+
+            # Actualizamos la fecha de última modificación del producto "padre"
+            cur.execute("UPDATE stock_productos SET ultima_modificacion = NOW() WHERE id = %s", (producto_id,))
+
+            conn.commit()
+
+        return jsonify({"mensaje": f"{len(items_a_insertar)} items agregados con éxito"}), 201
+    except Exception as e:
+        if conn: conn.rollback()
+        print(f"Error en agregar_items: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if conn: conn.close()
+
+
+@stock_bp.route("/api/stock/items/<int:item_id>", methods=["PATCH"])
+def editar_item(item_id):
+    """
+    Edita los detalles de un item de stock individual (estado y/o depósito).
+    """
+    data = request.get_json()
+    conn = get_db_connection()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            cur.execute("UPDATE stock_items SET estado = %s, deposito = %s, ultima_modificacion = NOW() WHERE id = %s",
+                (data.get('estado'), data.get('deposito'), item_id)
+            )
+            conn.commit()
+        return jsonify({"mensaje": "Item actualizado con éxito"}), 200
+    except Exception as e:
+        if conn: conn.rollback()
+        print(f"Error en editar_item: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if conn: conn.close()
+
+@stock_bp.route("/api/stock/items/salida", methods=["POST"])
+def registrar_salida_items():
+    """
+    Registra la salida (egreso) de uno o varios items mediante sus números de serie.
+    Cambia el estado a 'Vendido' y crea un registro en movimientos_stock.
+    """
+    data = request.get_json() or {}
+    serial_numbers = data.get("serial_numbers", [])
+    motivo = data.get("motivo", "VENTA")  # Permite personalizar el motivo
+
+    if not serial_numbers:
+        return jsonify({"error": "No se proporcionaron números de serie."}), 400
+
+    conn = get_db_connection()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            procesados = 0
+            for sn in serial_numbers:
+                # Buscamos el item disponible por su serial_number
+                cur.execute(
+                    """
+                    SELECT i.id, i.producto_id, p.nombre
+                    FROM stock_items i
+                    JOIN stock_productos p ON i.producto_id = p.id
+                    WHERE i.serial_number = %s AND i.estado = 'Disponible'
+                    """,
+                    (sn,),
+                )
+                item = cur.fetchone()
+                if not item:
+                    continue  # Serial no encontrado o no disponible
+
+                # Actualizamos el estado a Vendido (o el que necesites)
+                cur.execute(
+                    "UPDATE stock_items SET estado = 'Vendido', ultima_modificacion = NOW() WHERE id = %s",
+                    (item["id"],),
+                )
+
+                # Registramos el movimiento en el historial
+                detalles = f"Item SN {sn} egresado. Motivo: {motivo}"
+                registrar_movimiento(
+                    cur,
+                    item["nombre"],
+                    "EGRESO",
+                    detalles,
+                    item_id=item["id"],
+                )
+                procesados += 1
+
+            conn.commit()
+        return jsonify({"mensaje": "Salida registrada", "items": procesados}), 200
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
+
+@stock_bp.route("/api/stock/export", methods=["GET"])
+def exportar_stock():
+    """
+    Exporta la lista de productos y su stock disponible. Si xlsxwriter está
+    disponible se genera un archivo Excel (.xlsx); de lo contrario, se devuelve
+    un archivo CSV que puede abrirse en Excel.
+    """
+    conn = get_db_connection()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            cur.execute("""
+                SELECT
+                    p.sku, p.nombre, p.marca, p.categoria,
+                    COUNT(i.id) FILTER (WHERE i.estado = 'Disponible') AS cantidad_disponible,
+                    p.precio_venta_sugerido
+                FROM stock_productos p
+                LEFT JOIN stock_items i ON p.id = i.producto_id
+                GROUP BY p.id
+                ORDER BY p.nombre
+            """)
+            rows = cur.fetchall()
+
+        headers = ["SKU", "Nombre", "Marca", "Categoría", "Cantidad Disponible", "Precio Sugerido"]
+
+        # Si xlsxwriter está instalado, generamos un Excel; de lo contrario, usamos CSV.
+        if xlsxwriter:
+            output = BytesIO()
+            workbook = xlsxwriter.Workbook(output, {"in_memory": True})
+            worksheet = workbook.add_worksheet("Stock")
+            for col, header in enumerate(headers):
+                worksheet.write(0, col, header)
+            for row_idx, row in enumerate(rows, start=1):
+                worksheet.write_row(row_idx, 0, [
+                    row["sku"],
+                    row["nombre"],
+                    row["marca"],
+                    row["categoria"],
+                    row["cantidad_disponible"],
+                    row["precio_venta_sugerido"],
+                ])
+            workbook.close()
+            output.seek(0)
+            return send_file(output, download_name="stock.xlsx", as_attachment=True)
+        else:
+            # Fallback CSV
+            output = StringIO()
+            writer = csv.writer(output)
+            writer.writerow(headers)
+            for row in rows:
+                writer.writerow([
+                    row["sku"],
+                    row["nombre"],
+                    row["marca"],
+                    row["categoria"],
+                    row["cantidad_disponible"],
+                    row["precio_venta_sugerido"],
+                ])
+            output.seek(0)
+            return send_file(
+                BytesIO(output.getvalue().encode("utf-8")),
+                mimetype="text/csv",
+                download_name="stock.csv",
+                as_attachment=True,
+            )
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
+
+@stock_bp.route("/api/stock/historial/export", methods=["GET"])
+def exportar_historial():
+    """
+    Exporta el historial de movimientos de stock. Si xlsxwriter está disponible
+    genera un .xlsx; si no, devuelve un .csv.
+    """
+    conn = get_db_connection()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            cur.execute("""
+                SELECT fecha, accion, producto_nombre, detalles
+                FROM movimientos_stock
+                ORDER BY fecha DESC
+            """)
+            rows = cur.fetchall()
+
+        headers = ["Fecha", "Acción", "Producto", "Detalles"]
+
+        if xlsxwriter:
+            output = BytesIO()
+            workbook = xlsxwriter.Workbook(output, {"in_memory": True})
+            sheet = workbook.add_worksheet("Historial")
+            for col, header in enumerate(headers):
+                sheet.write(0, col, header)
+            for idx, row in enumerate(rows, start=1):
+                sheet.write_row(idx, 0, [
+                    row["fecha"].strftime("%Y-%m-%d %H:%M:%S"),
+                    row["accion"],
+                    row["producto_nombre"],
+                    row["detalles"],
+                ])
+            workbook.close()
+            output.seek(0)
+            return send_file(output, download_name="historial_stock.xlsx", as_attachment=True)
+        else:
+            # Fallback CSV
+            output = StringIO()
+            writer = csv.writer(output)
+            writer.writerow(headers)
+            for row in rows:
+                writer.writerow([
+                    row["fecha"].strftime("%Y-%m-%d %H:%M:%S"),
+                    row["accion"],
+                    row["producto_nombre"],
+                    row["detalles"],
+                ])
+            output.seek(0)
+            return send_file(
+                BytesIO(output.getvalue().encode("utf-8")),
+                mimetype="text/csv",
+                download_name="historial_stock.csv",
+                as_attachment=True,
+            )
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
+
+@stock_bp.route("/api/stock/import", methods=["POST"])
+def importar_stock():
+    """
+    Importa productos e ítems desde un archivo Excel (.xlsx/.xls) o CSV (.csv).
+    Para archivos Excel se requiere pandas instalado; de lo contrario, utilice un CSV.
+    """
+    archivo = request.files.get("file")
+    if not archivo or not archivo.filename:
+        return jsonify({"error": "No se envió ningún archivo"}), 400
+
+    filename = archivo.filename.lower()
+    # Leemos los datos en una lista de dicts (csv) o un DataFrame (Excel)
+    try:
+        if filename.endswith((".xlsx", ".xls")):
+            if pd is None:
+                return jsonify({"error": "Para importar archivos Excel necesitas instalar la librería pandas o convertir el archivo a CSV."}), 400
+            df = pd.read_excel(archivo)
+        else:
+            # CSV: usamos el módulo csv del estándar
+            archivo.seek(0)
+            contenido = archivo.stream.read().decode("utf-8")
+            reader = csv.DictReader(StringIO(contenido))
+            df = list(reader)
+    except Exception as e:
+        return jsonify({"error": f"Archivo inválido: {e}"}), 400
+
+    conn = get_db_connection()
+    creados = 0
+    actualizados = 0
+    errores = 0
+
+    try:
+        with conn.cursor() as cur:
+            # Iteramos según sea DataFrame o lista de dicts
+            registros = df.iterrows() if pd and not isinstance(df, list) else enumerate(df)
+            for _, fila in registros:
+                # fila puede ser una Series (pandas) o un dict (csv)
+                if pd and not isinstance(df, list):
+                    fila_dict = fila.to_dict()
+                else:
+                    fila_dict = fila
+
+                sku = str(fila_dict.get("sku") or "").strip()
+                nombre = str(fila_dict.get("nombre") or "").strip()
+                if not sku or not nombre:
+                    errores += 1
+                    continue
+
+                # Verificamos si el producto existe
+                cur.execute("SELECT id FROM stock_productos WHERE sku = %s", (sku,))
+                prod = cur.fetchone()
+                if not prod:
+                    # Crear producto
+                    cur.execute(
+                        """
+                        INSERT INTO stock_productos (sku, nombre, precio_venta_sugerido, marca, categoria)
+                        VALUES (%s, %s, %s, %s, %s) RETURNING id
+                        """,
+                        (
+                            sku,
+                            nombre,
+                            fila_dict.get("precio_venta_sugerido"),
+                            fila_dict.get("marca"),
+                            fila_dict.get("categoria"),
+                        ),
+                    )
+                    producto_id = cur.fetchone()[0]
+                    created = True
+                    creados += 1
+                else:
+                    producto_id = prod[0]
+                    created = False
+                    actualizados += 1
+
+                # Si viene número de serie, insertamos un item
+                serial_number = str(fila_dict.get("serial_number") or "").strip()
+                if serial_number:
+                    cur.execute(
+                        """
+                        INSERT INTO stock_items (producto_id, serial_number, costo, deposito)
+                        VALUES (%s, %s, %s, %s)
+                        """,
+                        (
+                            producto_id,
+                            serial_number,
+                            fila_dict.get("costo"),
+                            fila_dict.get("deposito"),
+                        ),
+                    )
+
+                accion = "CREADO" if created else "ACTUALIZADO"
+                registrar_movimiento(
+                    cur,
+                    nombre,
+                    accion,
+                    f"Importación desde archivo. SKU: {sku}",
+                )
+
+            conn.commit()
+        return jsonify({"mensaje": f"Productos creados: {creados}, actualizados: {actualizados}, errores: {errores}"}), 200
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
+
+@stock_bp.route("/api/stock/productos/<int:producto_id>/items", methods=["GET"])
+def obtener_items_producto(producto_id):
+    """
+    Devuelve los items individuales de un producto, con datos relevantes.
+    """
+    conn = get_db_connection()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            cur.execute("""
+                SELECT id, serial_number, estado, costo, deposito, ultima_modificacion
+                FROM stock_items
+                WHERE producto_id = %s
+                ORDER BY id
+            """, (producto_id,))
+            items = [dict(row) for row in cur.fetchall()]
+        return jsonify(items)
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
+@stock_bp.route("/api/stock/items/sn/<string:serial_number>", methods=["GET"])
+def buscar_item_por_sn(serial_number):
+    """
+    Devuelve información básica del item (producto, estado) a partir de su número de serie.
+    Sólo devuelve items en estado 'Disponible'.
+    """
+    conn = get_db_connection()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            cur.execute("""
+                SELECT i.id, i.serial_number, p.nombre AS producto, i.estado
+                FROM stock_items i
+                JOIN stock_productos p ON i.producto_id = p.id
+                WHERE i.serial_number = %s
+            """, (serial_number,))
+            item = cur.fetchone()
+        if not item:
+            return jsonify({"error": "No existe un item con ese número de serie."}), 404
+        if item['estado'] != 'Disponible':
+            return jsonify({"error": "El item no está disponible (estado actual: %s)." % item['estado']}), 400
+        return jsonify(dict(item))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+

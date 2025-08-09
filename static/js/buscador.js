@@ -6,6 +6,9 @@ let productoParaFijar = null;
 let estaBuscando = false;
 // Nueva variable para controlar el intervalo de sondeo
 let pollingInterval = null; 
+const NORMALIZAR_TIENDA = (s) => (s || '').trim().toLowerCase();
+const TGS_NAME = 'The Gamer Shop';
+const PG_NAME = 'PreciosGamer';
 
 //--- Inicialización de la Página ---
 document.addEventListener("DOMContentLoaded", () => {
@@ -34,10 +37,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 });
 
-//--- Lógica de Búsqueda con Sondeo Automático ---
-
 /**
- * Función principal que inicia la búsqueda o el sondeo.
+ * Función principal que inicia la búsqueda o renderiza resultados si no es nueva.
+ * Ahora maneja la posibilidad de recibir resultados parciales junto al estado 'actualizando'.
  */
 async function buscar(esNuevaBusqueda = false) {
     if (estaBuscando) {
@@ -52,16 +54,16 @@ async function buscar(esNuevaBusqueda = false) {
     const prodInput = document.getElementById("producto");
     const prod = prodInput.value.trim().toLowerCase();
     if (!prod) {
-        document.getElementById("tabla-resultados").innerHTML = `<div class="alert alert-secondary">Ingrese un producto.</div>`;
+        document.getElementById("tabla-resultados").innerHTML = `<p>Ingrese un producto.</p>`;
         return;
     }
 
     estaBuscando = true;
     iniciarBarraDeCarga();
-    
+
     // Detenemos cualquier sondeo anterior para empezar de cero
     if (pollingInterval) clearInterval(pollingInterval);
-    
+
     try {
         const tipo = document.getElementById("tipoBusqueda").value;
         const url = `/comparar?producto=${encodeURIComponent(prod)}&tipo=${encodeURIComponent(tipo)}`;
@@ -72,10 +74,17 @@ async function buscar(esNuevaBusqueda = false) {
         const data = await response.json();
 
         if (data.estado === 'actualizando') {
-            // Si el backend está trabajando, iniciamos el sondeo
+            // Si nos devuelven algunos resultados mayoristas junto al estado, los mostramos.
+            if (Array.isArray(data.resultados)) {
+                todosLosResultados = data.resultados;
+                renderizarResultados();
+            } else {
+                todosLosResultados = [];
+            }
+            // Iniciamos el sondeo para completar los minoristas
             iniciarSondeoDeResultados(prod, tipo, data.mensaje);
         } else {
-            // Si hay resultados directos, los mostramos
+            // Si la respuesta ya es la lista final (array), la manejamos normalmente
             manejarRespuestaFinal(data, prod);
         }
     } catch (error) {
@@ -84,20 +93,20 @@ async function buscar(esNuevaBusqueda = false) {
     }
 }
 
+
 /**
- * NUEVA FUNCIÓN: Pregunta al servidor cada 4 segundos si ya tiene los resultados.
+ * Pregunta al servidor cada 4 segundos si ya hay resultados completos.
+ * Si el servidor responde con resultados finales (array), detiene el sondeo y los muestra.
  */
 function iniciarSondeoDeResultados(producto, tipo, mensajeInicial) {
     const tablaDiv = document.getElementById("tabla-resultados");
-    tablaDiv.innerHTML = `<div class="alert alert-info">${mensajeInicial}</div>`;
-    
+    tablaDiv.innerHTML = `<p>${mensajeInicial}</p>`;
+
     let intentos = 0;
     const maxIntentos = 15; // Intentará durante 60 segundos (15 * 4s)
 
     pollingInterval = setInterval(async () => {
-        console.log(`Intento de sondeo #${intentos + 1} para '${producto}'`);
         intentos++;
-
         if (intentos > maxIntentos) {
             clearInterval(pollingInterval);
             manejarRespuestaFinal({ error: "La búsqueda está tardando más de lo esperado. Intente de nuevo." });
@@ -109,18 +118,75 @@ function iniciarSondeoDeResultados(producto, tipo, mensajeInicial) {
             const response = await fetch(url);
             const data = await response.json();
 
-            // Si el estado ya no es 'actualizando', tenemos resultados!
+            // Si ya no está actualizando, tenemos resultados finales
             if (data.estado !== 'actualizando') {
                 clearInterval(pollingInterval);
                 manejarRespuestaFinal(data, producto);
+            } else if (Array.isArray(data.resultados)) {
+                // Si todavía está actualizando pero llegan resultados mayoristas, los actualizamos en pantalla
+                todosLosResultados = data.resultados;
+                renderizarResultados();
             }
-            // Si sigue actualizando, no hacemos nada y esperamos al siguiente intervalo.
         } catch (error) {
             console.error("Error durante el sondeo:", error);
             clearInterval(pollingInterval);
             manejarRespuestaFinal({ error: "Se perdió la conexión durante la actualización." });
         }
-    }, 4000); // Pregunta cada 4 segundos
+    }, 4000); // Cada 4 segundos
+}
+
+
+function uniqueByKey(arr, keyFn) {
+    const seen = new Set();
+    return arr.filter(x => {
+        const k = keyFn(x);
+        if (seen.has(k)) return false;
+        seen.add(k);
+        return true;
+    });
+}
+  
+function roundRobinGroups(groups) {
+    // groups: array de arrays (cada array = resultados de una tienda)
+    const out = [];
+    let added;
+    let i = 0;
+    do {
+        added = false;
+        for (const g of groups) {
+        if (i < g.length) { out.push(g[i]); added = true; }
+        }
+        i++;
+    } while (added);
+    return out;
+}
+  
+  /** Intercalado según tipo */
+function intercalarSegunTipo(tipo, lista) {
+    // Deduplicar por (sitio + link) normalizados
+    const sinDupes = uniqueByKey(lista, it => `${NORMALIZAR_TIENDA(it.sitio)}|${(it.link||'').trim()}`);
+
+    if (tipo === 'minoristas') {
+        const tgs = sinDupes.filter(it => it.sitio === TGS_NAME);
+        const pg  = sinDupes.filter(it => it.sitio === PG_NAME);
+        // Intercalar TGS y PG, y al final sumar otros por si acaso
+        const resto = sinDupes.filter(it => it.sitio !== TGS_NAME && it.sitio !== PG_NAME);
+        return roundRobinGroups([pg, tgs]).concat(resto);
+    }
+
+    if (tipo === 'masiva') {
+        const porTienda = {};
+        sinDupes.forEach(it => {
+        porTienda[it.sitio] = porTienda[it.sitio] || [];
+        porTienda[it.sitio].push(it);
+        });
+        // Orden opcional por cantidad asc para balancear
+        const grupos = Object.values(porTienda).sort((a,b) => a.length - b.length);
+        return roundRobinGroups(grupos);
+    }
+
+    // Mayoristas u otros: devolver como vino (ya dedupeado)
+    return sinDupes;
 }
 
 /**
@@ -144,55 +210,86 @@ function manejarRespuestaFinal(data, prod = "") {
 }
 
 
-//--- El resto de tus funciones (renderizarResultados, fijarProducto, etc.) se mantienen igual ---
-// Pega aquí el resto de tu archivo buscador.js si es necesario, pero la lógica de arriba
-// es la que soluciona el problema del bucle y la página "trabada".
+// REEMPLAZA esta función en: static/js/buscador.js
 
 function renderizarResultados() {
     const tablaDiv = document.getElementById("tabla-resultados");
-    let resultadosFiltrados = [...todosLosResultados];
+    const tipo = document.getElementById("tipoBusqueda").value;
+    let resultados = intercalarSegunTipo(tipo, todosLosResultados.map(r => ({
+        ...r,
+        // Aseguramos precio_numeric y fetched_at uniforme
+        precio_numeric: typeof r.precio_numeric === 'number' 
+            ? r.precio_numeric 
+            : parseFloat(String(r.precio || "0").replace(/\$/g,"").replace(/\./g,"").replace(",",".")) || 0,
+        fetched_at: r.fetched_at || r.actualizado || r.updated_at || null
+    })));
+
+    // Filtros existentes
     const tiendasSeleccionadas = Array.from(document.querySelectorAll('#filtro-tiendas input:checked')).map(cb => cb.value);
     if (tiendasSeleccionadas.length > 0) {
-        resultadosFiltrados = resultadosFiltrados.filter(item => tiendasSeleccionadas.includes(item.sitio));
+        resultados = resultados.filter(item => tiendasSeleccionadas.includes(item.sitio));
     }
     const precioMin = parseFloat(document.getElementById("precioMin").value) || 0;
     const precioMax = parseFloat(document.getElementById("precioMax").value) || Infinity;
-    resultadosFiltrados = resultadosFiltrados.filter(item => {
-        const precioNum = parseFloat(String(item.precio || "0").replace(/\$/g, "").replace(/\./g, "").replace(",", "."));
-        return precioNum >= precioMin && precioNum <= precioMax;
-    });
+    resultados = resultados.filter(item => item.precio_numeric >= precioMin && item.precio_numeric <= precioMax);
+
+    // Orden
     const orden = document.getElementById("ordenSelect").value;
-    resultadosFiltrados.forEach(item => {
-        item.precio_numeric = parseFloat(String(item.precio || "0").replace(/\$/g, "").replace(/\./g, "").replace(",", "."));
-    });
-    if (orden === "precio_asc") resultadosFiltrados.sort((a, b) => a.precio_numeric - b.precio_numeric);
-    else if (orden === "precio_desc") resultadosFiltrados.sort((a, b) => b.precio_numeric - a.precio_numeric);
-    else if (orden === "nombre_asc") resultadosFiltrados.sort((a, b) => (a.producto || "").localeCompare(b.producto || ""));
-    else if (orden === "nombre_desc") resultadosFiltrados.sort((a, b) => (b.producto || "").localeCompare(a.producto || ""));
-    
+    if (orden === "precio_asc") resultados.sort((a, b) => a.precio_numeric - b.precio_numeric);
+    else if (orden === "precio_desc") resultados.sort((a, b) => b.precio_numeric - a.precio_numeric);
+    else if (orden === "nombre_asc") resultados.sort((a, b) => (a.producto || "").localeCompare(b.producto || ""));
+    else if (orden === "nombre_desc") resultados.sort((a, b) => (b.producto || "").localeCompare(a.producto || ""));
+
+    // Detectar tiendas esperadas que faltan (útil para debug)
+    const tiendasPresentes = new Set(resultados.map(r => r.sitio));
+    const esperadasMinoristas = [PG_NAME, TGS_NAME];
+    const faltantes = (tipo === 'minoristas')
+      ? esperadasMinoristas.filter(t => !tiendasPresentes.has(t))
+      : [];
+
     let html = `<h4>Resultados de Búsqueda</h4>`;
-    if (resultadosFiltrados.length > 0) {
+    if (faltantes.length) {
+      html += `<div class="alert alert-warning mb-2">⚠️ No llegaron resultados de: <b>${faltantes.join(', ')}</b>. Revisá logs/endpoint.</div>`;
+    }
+
+    if (resultados.length > 0) {
         html += `<table class="table table-hover align-middle mt-3">
                     <thead>
                         <tr>
-                            <th style="width: 5%;">Fijar</th>
-                            <th style="width: 10%;">Imagen</th>
-                            <th style="width: 15%;">Sitio</th>
-                            <th style="width: 40%;">Producto</th>
-                            <th style="width: 15%;">Precio</th>
-                            <th style="width: 5%;">Link</th>
-                            <th style="width: 10%;">Agregar</th>
+                            <th style="width:5%;">Fijar</th>
+                            <th style="width:10%;">Imagen</th>
+                            <th style="width:15%;">Sitio</th>
+                            <th style="width:35%;">Producto</th>
+                            <th style="width:15%;">Precio</th>
+                            <th style="width:10%;">Actualizado</th>
+                            <th style="width:5%;">Link</th>
+                            <th style="width:10%;">Agregar</th>
                         </tr>
                     </thead>
                     <tbody>`;
-        resultadosFiltrados.forEach(item => {
-            const imagenSrc = item.imagen || 'https://via.placeholder.com/150'; 
-            html += `<tr>
+        const dtf = new Intl.DateTimeFormat('es-AR', { dateStyle: 'short', timeStyle: 'short' });
+
+        resultados.forEach(item => {
+            const rowClass = item.sitio === TGS_NAME ? 'highlight-tgs' : '';
+            // Imagen: en mayoristas, “en blanco” para evitar imagen rota
+            let imagenHTML = '';
+            if (tipo === 'mayoristas') {
+                imagenHTML = `<div class="img-ph"></div>`;
+            } else {
+                const src = item.imagen && item.imagen.startsWith('http') ? item.imagen : '';
+                imagenHTML = src 
+                  ? `<img src="${src}" alt="${item.producto}" class="img-fluid rounded" style="max-height:60px;">`
+                  : `<div class="img-ph"></div>`;
+            }
+            const fechaTxt = item.fetched_at ? dtf.format(new Date(item.fetched_at)) : '-';
+
+            html += `<tr class="${rowClass}">
                 <td><button class="btn btn-sm btn-outline-primary" onclick='abrirModalFijar(${JSON.stringify(item)})'><i class="fas fa-thumbtack"></i></button></td>
-                <td><img src="${imagenSrc}" alt="${item.producto}" class="img-fluid rounded" style="max-height: 60px;"></td>
-                <td>${item.sitio}</td>
+                <td>${imagenHTML}</td>
+                <td>${item.sitio || "-"}</td>
                 <td>${item.producto || "N/A"}</td>
-                <td class="fw-bold">${item.precio || "N/A"}</td>
+                <td class="fw-bold">${item.precio || formatearComoPesoArgentino(item.precio_numeric) || "N/A"}</td>
+                <td>${fechaTxt}</td>
                 <td><a href="${item.link || "#"}" target="_blank" class="btn btn-sm btn-outline-secondary">Ver</a></td>
                 <td><button class="btn btn-sm btn-danger" onclick='agregarAlCarrito(${JSON.stringify(item)})'><i class="fas fa-cart-plus"></i></button></td>
             </tr>`;
@@ -203,6 +300,10 @@ function renderizarResultados() {
     }
     tablaDiv.innerHTML = html;
 }
+
+
+
+
 
 async function abrirModalFijar(item) {
     productoParaFijar = item;
@@ -405,6 +506,15 @@ async function cargarCategoriasYMargenes() {
             `<div class="alert alert-danger">Error al cargar la configuración.</div>`;
     }
 }
+
+
+function ampliarImagen(src) {
+    const modalImg = document.getElementById('modalImagenGrandeImg');
+    modalImg.src = src;
+    const modal = new bootstrap.Modal(document.getElementById('modalImagenGrande'));
+    modal.show();
+}
+
 
 async function guardarMargenes() {
     const inputs = document.querySelectorAll('#lista-categorias-margen input[type="number"]');

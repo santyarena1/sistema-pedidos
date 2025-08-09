@@ -1,5 +1,7 @@
 // Variable global para saber en qué producto estamos trabajando en los modales
-let productoSeleccionado = null; 
+let productoSeleccionado = null;
+let snEgresoList = [];
+
 /**
  * [NUEVO] Formatea un número al estilo de moneda argentina (ARS).
  * @param {number} numero El número a formatear.
@@ -17,22 +19,55 @@ let currentSort = {
     by: 'nombre',
     order: 'asc'
 };
-// --- INICIALIZACIÓN DE LA PÁGINA ---
+
+document.getElementById('modalEgresoRapido').addEventListener('show.bs.modal', () => {
+    snEgresoList = [];
+    document.getElementById('tabla-egreso-items').innerHTML = '';
+    document.getElementById('lectorSnEgreso').value = '';
+});
+
+// Capturamos el Enter en el lector de SN
+document.getElementById('lectorSnEgreso').addEventListener('keydown', async (event) => {
+    if (event.key === 'Enter') {
+        event.preventDefault();
+        const sn = event.target.value.trim();
+        if (!sn) return;
+        // Validamos que no esté ya en la lista
+        if (snEgresoList.find(item => item.serial_number === sn)) {
+            alert('Ese SN ya está en la lista.');
+            event.target.value = '';
+            return;
+        }
+        try {
+            const resp = await fetch(`/api/stock/items/sn/${sn}`);
+            const data = await resp.json();
+            if (!resp.ok) {
+                alert(data.error);
+            } else {
+                snEgresoList.push(data); // data contiene id, serial_number, producto, estado
+                renderTablaEgreso();
+            }
+        } catch (err) {
+            console.error(err);
+            alert('Error al buscar el SN.');
+        } finally {
+            event.target.value = '';
+        }
+    }
+});
+
 document.addEventListener("DOMContentLoaded", () => {
     poblarFiltros();
     cargarProductos();
-    
-    // Listeners para los filtros
+
+    // Listeners para filtros y ordenamiento
     document.getElementById('filtro-marca').addEventListener('change', cargarProductos);
     document.getElementById('filtro-categoria').addEventListener('change', cargarProductos);
     document.getElementById('filtro-deposito').addEventListener('change', cargarProductos);
     document.getElementById('filtro-disponibles').addEventListener('change', cargarProductos);
     document.getElementById('btn-limpiar-filtros').addEventListener('click', limpiarFiltros);
-    document.getElementById('buscador-general').addEventListener('input', () => {
-        cargarProductos();
-    });
+    document.getElementById('buscador-general').addEventListener('input', cargarProductos);
 
-    // Listeners para ordenar tabla
     document.querySelectorAll('.sortable').forEach(header => {
         header.addEventListener('click', function() {
             const sortBy = this.dataset.sort;
@@ -46,13 +81,19 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     });
 
-    // Tu listener para el lector de SKU se mantiene
+    // Eventos para el lector de SKU y las acciones asociadas
     document.getElementById('lectorSku').addEventListener('keydown', (event) => {
         if (event.key === 'Enter') {
             event.preventDefault();
             buscarPorSku();
         }
     });
+    document.getElementById('btnEgresarSku').addEventListener('click', egresarPorSku);
+    document.getElementById('btnExportarExcel').addEventListener('click', exportarStock);
+    document.getElementById('btnImportarExcel').addEventListener('click', () => {
+        document.getElementById('archivoExcelInput').click();
+    });
+    document.getElementById('archivoExcelInput').addEventListener('change', importarStock);
 });
 
 //--- FUNCIONES DE LA VISTA PRINCIPAL (TIPOS DE PRODUCTO) ---
@@ -119,6 +160,60 @@ async function cargarProductos() {
         tbody.innerHTML = '<tr><td colspan="8" class="text-center text-danger py-4">Error al cargar los productos. Revise la consola.</td></tr>';
     }
 }
+
+function renderTablaEgreso() {
+    const tbody = document.getElementById('tabla-egreso-items');
+    tbody.innerHTML = '';
+    snEgresoList.forEach((item, index) => {
+        tbody.innerHTML += `
+            <tr>
+                <td>${item.serial_number}</td>
+                <td>${item.producto}</td>
+                <td>
+                    <button class="btn btn-sm btn-danger" onclick="quitarSnDeEgreso(${index})">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
+                </td>
+            </tr>`;
+    });
+}
+
+function quitarSnDeEgreso(idx) {
+    snEgresoList.splice(idx, 1);
+    renderTablaEgreso();
+}
+
+// Confirma el egreso de todos los SN de la lista
+document.getElementById('btnConfirmarEgreso').addEventListener('click', async () => {
+    if (snEgresoList.length === 0) {
+        alert('No hay items para egresar.');
+        return;
+    }
+    const motivo = prompt('Motivo del egreso (VENTA, DEVOLUCIÓN, MERMA, etc.):', 'VENTA') || 'VENTA';
+    const serial_numbers = snEgresoList.map(item => item.serial_number);
+    try {
+        const resp = await fetch('/api/stock/items/salida', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ serial_numbers, motivo })
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || 'Error al egresar');
+        alert(`Se egresaron ${data.items} items.`);
+        // Refrescamos la interfaz y vaciamos la lista
+        snEgresoList = [];
+        renderTablaEgreso();
+        cargarProductos();
+        abrirModalHistorial();
+        // Cerramos el modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('modalEgresoRapido'));
+        modal.hide();
+    } catch (err) {
+        console.error(err);
+        alert(err.message);
+    }
+});
+
 
 async function eliminarProducto(productoId, nombreProducto) {
     if (!confirm(`¿Estás seguro de que quieres eliminar "${nombreProducto}"?\n\n¡ATENCIÓN! Se borrarán todos sus items y números de serie asociados.`)) return;
@@ -187,7 +282,9 @@ async function guardarProducto() {
         precio_venta_sugerido: parseFloat(document.getElementById('nuevoPrecio').value) || 0
     };
 
-    if (!payload.nombre) { return alert("El nombre del producto es obligatorio."); }
+    if (!payload.nombre) {
+        return alert("El nombre del producto es obligatorio.");
+    }
     
     const url = esEdicion ? `/api/stock/productos/${productoId}` : '/api/stock/productos';
     const method = esEdicion ? 'PATCH' : 'POST';
@@ -197,11 +294,17 @@ async function guardarProducto() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
     });
-    
+
+    // Cerramos el modal de alta/edición
     bootstrap.Modal.getInstance(document.getElementById('modalAgregarProducto')).hide();
+
+    // Recargamos la lista de productos
     cargarProductos();
-    abrirModalHistorial(); // Actualizamos el historial
+
+    // Ya no abrimos el historial automáticamente
+    // abrirModalHistorial();
 }
+
 
 //--- FUNCIONES PARA LECTOR DE CÓDIGO DE BARRAS ---
 async function buscarPorSku() {
@@ -247,12 +350,8 @@ function verItemsPorSku() {
     abrirModalItems(productoSeleccionado.id, productoSeleccionado.nombre);
 }
 
-/**
- * Abre el modal para ver y agregar los items individuales de un producto.
- */
-/**
- * [MEJORADO] Abre el modal para ver, agregar, editar y eliminar items.
- */
+// REEMPLAZA tu función abrirModalItems en: static/js/stock.js
+
 async function abrirModalItems(productoId, nombreProducto) {
     productoSeleccionado = { id: productoId, nombre: nombreProducto };
     document.getElementById('nombreProductoEnModal').textContent = nombreProducto;
@@ -264,38 +363,29 @@ async function abrirModalItems(productoId, nombreProducto) {
         const tbody = document.getElementById('tabla-items-individuales');
         tbody.innerHTML = '';
 
-        const thead = tbody.previousElementSibling;
-        if (!thead.querySelector('.col-acciones')) {
-            thead.rows[0].innerHTML += '<th class="text-end col-acciones">Acciones</th>';
-        }
-
         if (items.length === 0) {
             tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">Aún no hay items individuales para este producto.</td></tr>';
         } else {
             items.forEach(item => {
-                const estadoClass = item.estado ? `estado-${item.estado.toLowerCase().replace(' ', '-')}` : '';
                 const fechaModif = item.ultima_modificacion ? new Date(item.ultima_modificacion).toLocaleString('es-AR') : '-';
                 const itemString = JSON.stringify(item).replace(/'/g, "\\'");
-                
+
                 tbody.innerHTML += `
                     <tr>
                         <td>${item.id}</td>
                         <td>${item.serial_number || 'N/A'}</td>
-                        <td><span class="badge ${estadoClass}">${item.estado || 'N/A'}</span></td>
+                        <td><span class="badge estado-${(item.estado || 'N/A').toLowerCase().replace(' ', '-')}">${item.estado || 'N/A'}</span></td>
                         <td>${formatoPrecioARS(item.costo)}</td>
                         <td>${item.deposito || 'N/A'}</td>
                         <td>${fechaModif}</td>
                         <td class="text-end">
                             <button class="btn btn-sm btn-outline-secondary py-0 px-1" title="Editar Item" onclick='editarItem(${itemString})'><i class="fas fa-edit"></i></button>
-                            
-                            <button class="btn btn-sm btn-outline-info py-0 px-1 ms-1" title="Imprimir Etiqueta" onclick="imprimirEtiquetaIndividual(${item.id})"><i class="fas fa-print"></i></button>
-                            
                             <button class="btn btn-sm btn-outline-danger py-0 px-1 ms-1" title="Eliminar Item" onclick="eliminarItem(${item.id}, '${item.serial_number}')"><i class="fas fa-trash-alt"></i></button>
                         </td>
                     </tr>`;
             });
         }
-        
+
         const modal = new bootstrap.Modal(document.getElementById('modalVerItems'));
         modal.show();
 
@@ -304,23 +394,23 @@ async function abrirModalItems(productoId, nombreProducto) {
     }
 }
 
-/**
- * Guarda los nuevos items (SNs) que se ingresan en el modal.
- */
+
+
+// REEMPLAZA tu función guardarNuevosItems en: static/js/stock.js
+
 async function guardarNuevosItems() {
     const snsTexto = document.getElementById('nuevosSns').value.trim();
     if (!snsTexto) {
         return alert("Debes ingresar al menos un número de serie.");
     }
 
-    // Convertimos el texto de los números de serie en un array, filtrando líneas vacías
     const serial_numbers = snsTexto.split('\n').map(sn => sn.trim()).filter(sn => sn);
     if (serial_numbers.length === 0) {
         return alert("Debes ingresar al menos un número de serie válido.");
     }
 
-    const payload = { 
-        producto_id: productoSeleccionado.id, 
+    const payload = {
+        producto_id: productoSeleccionado.id,
         serial_numbers: serial_numbers,
         costo: parseFloat(document.getElementById('nuevoCosto').value) || 0,
         deposito: document.getElementById('nuevoDepositoItem').value
@@ -337,13 +427,10 @@ async function guardarNuevosItems() {
             throw new Error('El servidor no pudo guardar los items.');
         }
 
-        // Si todo sale bien, limpiamos los campos y recargamos la vista del modal
         document.getElementById('nuevosSns').value = '';
         document.getElementById('nuevoCosto').value = '';
-        
-        // Volvemos a llamar a la función para refrescar la lista de items en el modal
+
         abrirModalItems(productoSeleccionado.id, productoSeleccionado.nombre);
-        // También recargamos la tabla principal para que se actualice la cantidad
         cargarProductos();
 
     } catch (error) {
@@ -666,4 +753,183 @@ function actualizarIconosSort() {
             sortIcon.classList.add('fa-sort');
         }
     });
+}
+
+// AGREGA esta función en: static/js/stock.js
+
+async function buscarPorSku() {
+    const sku = document.getElementById('lectorSku').value.trim();
+    const panelAccion = document.getElementById('panelAccionSku');
+    const alerta = document.getElementById('alertaSku');
+
+    if (!sku) {
+        panelAccion.classList.add('d-none');
+        alerta.classList.add('d-none');
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/stock/sku/${sku}`);
+        const producto = await response.json();
+
+        if (!response.ok) throw new Error(producto.error || "Producto no encontrado.");
+
+        productoSeleccionado = producto;
+        document.getElementById('nombreProductoSku').textContent = producto.nombre;
+        alerta.classList.add('d-none');
+        panelAccion.classList.remove('d-none');
+    } catch (error) {
+        productoSeleccionado = null;
+        alerta.textContent = error.message;
+        alerta.classList.remove('d-none');
+        panelAccion.classList.add('d-none');
+    }
+}
+
+// AGREGA estas funciones en: static/js/stock.js
+
+async function editarItem(item) {
+    document.getElementById('editItemId').value = item.id;
+    document.getElementById('editItemSn').textContent = item.serial_number;
+
+    const selectEstado = document.getElementById('editItemEstado');
+    const estados = ['Disponible', 'Vendido', 'Reservado', 'RMA', 'Defectuoso'];
+    selectEstado.innerHTML = '';
+    estados.forEach(estado => {
+        const esSeleccionado = estado === item.estado ? 'selected' : '';
+        selectEstado.innerHTML += `<option value="${estado}" ${esSeleccionado}>${estado}</option>`;
+    });
+
+    await poblarSelect('editItemDeposito', 'depositos', item.deposito);
+
+    const modal = new bootstrap.Modal(document.getElementById('modalEditarItem'));
+    modal.show();
+}
+
+async function guardarCambiosItem() {
+    const itemId = document.getElementById('editItemId').value;
+    const payload = {
+        estado: document.getElementById('editItemEstado').value,
+        deposito: document.getElementById('editItemDeposito').value
+    };
+
+    try {
+        const response = await fetch(`/api/stock/items/${itemId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'El servidor no pudo actualizar el item.');
+        }
+
+        bootstrap.Modal.getInstance(document.getElementById('modalEditarItem')).hide();
+        abrirModalItems(productoSeleccionado.id, productoSeleccionado.nombre);
+        cargarProductos();
+
+    } catch (error) {
+        alert(`Error al actualizar: ${error.message}`);
+        console.error(error);
+    }
+}
+
+async function eliminarItem(itemId, serialNumber) {
+    if (!confirm(`¿Estás seguro de que quieres eliminar el item con SN: "${serialNumber}"?\n\nEsta acción no se puede deshacer.`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/stock/items/${itemId}`, {
+            method: 'DELETE'
+        });
+
+        if (!response.ok) {
+            throw new Error('El servidor no pudo eliminar el item.');
+        }
+
+        abrirModalItems(productoSeleccionado.id, productoSeleccionado.nombre);
+        cargarProductos();
+
+    } catch (error) {
+        alert("Error al eliminar el item.");
+        console.error(error);
+    }
+}
+
+async function exportarStock() {
+    try {
+        const resp = await fetch('/api/stock/export');
+        if (!resp.ok) throw new Error('Error en la exportación');
+        const blob = await resp.blob();
+        // Obtenemos el nombre del archivo del header Content-Disposition si existe
+        const disposition = resp.headers.get('Content-Disposition');
+        let filename = 'stock.xlsx';
+        if (disposition) {
+            const match = disposition.match(/filename=\"?([^\";]+)\"?/);
+            if (match) filename = match[1];
+        }
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+    } catch (err) {
+        console.error(err);
+        alert('No se pudo exportar el stock.');
+    }
+}
+
+async function importarStock(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+        const resp = await fetch('/api/stock/import', {
+            method: 'POST',
+            body: formData
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || 'Error en la importación');
+        alert(`Importación finalizada: ${data.mensaje}`);
+        cargarProductos();
+        abrirModalHistorial();
+    } catch (err) {
+        console.error(err);
+        alert(err.message);
+    } finally {
+        // Limpiamos el input para permitir volver a subir el mismo archivo si se desea
+        event.target.value = '';
+    }
+}
+
+async function egresarPorSku() {
+    if (!productoSeleccionado) return;
+    const serialInput = prompt('Ingrese los números de serie a egresar, uno por línea:');
+    if (!serialInput) return;
+    const serial_numbers = serialInput.split('\n').map(sn => sn.trim()).filter(sn => sn);
+    if (serial_numbers.length === 0) return;
+
+    const motivo = prompt('Motivo del egreso (VENTA, DEVOLUCIÓN, MERMA, etc.):', 'VENTA') || 'VENTA';
+
+    try {
+        const resp = await fetch('/api/stock/items/salida', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ serial_numbers, motivo })
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || 'Error al registrar la salida');
+        alert(`${data.items} items egresados correctamente.`);
+        cargarProductos();
+        abrirModalHistorial();
+    } catch (err) {
+        console.error(err);
+        alert(err.message);
+    }
 }

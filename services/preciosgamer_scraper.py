@@ -1,12 +1,26 @@
+# services/preciosgamer_scraper.py
 import requests
 import time
+import re
 
 def buscar_en_preciosgamer(producto):
     print(f"-> Buscando en PreciosGamer (con paginación) para '{producto}'...")
     productos_totales = []
     offset = 0
     limite_por_pagina = 30
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)...'} # Tu header
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)...'}
+
+    # LISTA BLANCA DE TIENDAS PERMITIDAS
+    tiendas_permitidas = {
+        "Acuario Insumos", "Compra Gamer", "Compugarden", "Full H4rd",
+        "Gaming City", "Integrados Argentinos", "Maximus", "Megasoft",
+        "Mexx", "Scp Hardstore", "TheGamerShop"  # Agregamos TheGamerShop
+    }
+
+    def normalizar_nombre(nombre):
+        return re.sub(r'[\s\W_]+', '', nombre).lower()
+
+    tiendas_permitidas_norm = {normalizar_nombre(t) for t in tiendas_permitidas}
 
     while True:
         url = f"https://api.preciosgamer.com/v1/items?search={requests.utils.quote(producto)}&offset={offset}"
@@ -15,29 +29,27 @@ def buscar_en_preciosgamer(producto):
             response.raise_for_status()
             data = response.json()
 
-            if isinstance(data, dict) and 'response' in data and data['response']:
-                resultados_pagina = data['response']
+            if isinstance(data, dict) and 'results' in data and data['results']:
+                resultados_pagina = data['results']
                 
                 for item in resultados_pagina:
-                    # --- INICIO DE LA MEJORA ---
-                    # Usamos un bloque try/except para cada producto individualmente.
-                    # Si uno falla, el bucle continúa con el siguiente.
                     try:
-                        productos_totales.append({
-                            'busqueda': producto.lower(),
-                            'sitio': item.get('resellerDescription', 'N/A'),
-                            'producto': item.get('description', 'N/A'),
-                            'precio': float(item.get('currentPrice', 0)),
-                            'link': item.get('destinyUrl', '#'),
-                            'imagen': item.get('defaultImgUrl', ''),
-                            'marca': item.get('brandDescription', 'Sin Marca'),
-                            'precio_anterior': float(item.get('lastPrice', 0)),
-                            'porcentaje_descuento': float(item.get('percentage', 0))
-                        })
+                        nombre_tienda_norm = normalizar_nombre(item.get('resellerDescription', ''))
+                        if nombre_tienda_norm in tiendas_permitidas_norm:
+                            productos_totales.append({
+                                'busqueda': producto.lower(),
+                                'sitio': item.get('resellerDescription', 'N/A'),
+                                'producto': item.get('description', 'N/A'),
+                                'precio': float(item.get('currentPrice', 0)),
+                                'link': item.get('destinyUrl', '#'),
+                                'imagen': item.get('defaultImgUrl', ''),
+                                'marca': item.get('brandDescription', 'Sin Marca'),
+                                'precio_anterior': float(item.get('lastPrice', 0)),
+                                'porcentaje_descuento': float(item.get('percentage', 0))
+                            })
                     except (ValueError, TypeError) as e:
                         print(f"--- ADVERTENCIA: Omitiendo un producto por datos inválidos: {e} ---")
-                        continue # Salta al siguiente producto
-                    # --- FIN DE LA MEJORA ---
+                        continue
 
                 print(f"-> Página {int(offset/limite_por_pagina) + 1} obtenida. Total acumulado: {len(productos_totales)}")
                 if len(resultados_pagina) < limite_por_pagina: break
