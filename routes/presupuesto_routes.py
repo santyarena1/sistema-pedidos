@@ -3,10 +3,11 @@
 from flask import Blueprint, request, jsonify, render_template, send_file
 from db.connection import get_db_connection
 import psycopg2.extras
-from datetime import date
 from jinja2 import Environment, FileSystemLoader
 from weasyprint import HTML
 import io
+from datetime import date, timedelta
+import psycopg2.extras
 
 presupuesto_bp = Blueprint("presupuestos", __name__)
 
@@ -315,3 +316,91 @@ def generar_pdf_simple(presupuesto_id):
         return str(e), 500
     finally:
         if conn: conn.close()
+
+@presupuesto_bp.route("/presupuestos/recibir-fijados", methods=["POST"])
+def recibir_fijados():
+    """
+    Recibe un array de productos fijados y crea un presupuesto nuevo.
+    Si mantenerMarkupPorCategoria es True, usa el precio de venta calculado por categoría.
+    Si es False, usa el coeficiente global (coef_venta de presupuestos, por defecto 1.3) para calcular el precio de venta.
+    """
+    data = request.get_json() or {}
+    items = data.get('items', [])
+    mantener = bool(data.get('mantenerMarkupPorCategoria', False))
+    if not isinstance(items, list) or not items:
+        return jsonify({"error": "Se requiere una lista de items fijados"}), 400
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            # Usamos coef_venta global; si existiera otro valor configurable en la tabla presupuestos se podría traer de allí.
+            coef_global = 1.3
+
+            total_calculado = 0.0
+            for it in items:
+                # Convertimos a float con cuidado por si vienen cadenas vacías
+                costo = float(it.get('precio', 0) or 0)
+                # Si mantener es True, usamos el precioVentaCalculado enviado
+                if mantener:
+                    total_calculado += float(it.get('precioVentaCalculado', 0) or 0)
+                else:
+                    total_calculado += costo * coef_global
+
+            descuento = 0.0
+            total_final = total_calculado - descuento
+
+            # Fechas de emisión y validez (7 días)
+            fecha_emision = date.today()
+            fecha_validez = fecha_emision + timedelta(days=7)
+
+            # Creamos el presupuesto
+            cur.execute("""
+                INSERT INTO presupuestos (cliente, fecha_emision, fecha_validez, coef_venta, descuento, total_final, creado_en, ultima_modificacion)
+                VALUES (%s, %s, %s, %s, %s, %s, NOW(), NOW())
+                RETURNING id
+            """, (
+                'Consumidor Final',
+                fecha_emision,
+                fecha_validez,
+                coef_global,
+                descuento,
+                total_final
+            ))
+            presupuesto_id = cur.fetchone()[0]
+
+            # Preparamos los ítems a insertar
+            items_insert = []
+            for orden, it in enumerate(items):
+                costo = float(it.get('precio', 0) or 0)
+                precio_venta = float(it.get('precioVentaCalculado', 0) or 0) if mantener else costo * coef_global
+                items_insert.append((
+                    presupuesto_id,
+                    (it.get('producto') or '').upper(),
+                    1,               # cantidad
+                    costo,           # precio (costo base)
+                    precio_venta,    # precio de venta final
+                    0.0,             # iva (por defecto)
+                    orden,           # orden de aparición
+                    True             # visible_en_pdf
+                ))
+
+            if items_insert:
+                psycopg2.extras.execute_batch(cur, """
+                    INSERT INTO items_presupuesto (presupuesto_id, producto, cantidad, precio, precio_venta, iva, orden, visible_en_pdf)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                """, items_insert)
+
+            conn.commit()
+        # Devolvemos id y URL para redirigir al presupuesto recién creado
+        return jsonify({
+            "presupuesto_id": presupuesto_id,
+            "redirect_url": f"/presupuestos?id={presupuesto_id}"
+        })
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if conn:
+            conn.close()

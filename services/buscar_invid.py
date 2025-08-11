@@ -11,6 +11,10 @@ from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 
 def obtener_lista_completa_invid():
+    """
+    Descarga el archivo Excel de la intranet de Invid y devuelve una lista de productos.
+    Si ocurre cualquier excepción en el proceso de login, descarga o parseo, se captura y se devuelve una lista vacía.
+    """
     nombre_tienda = "Invid"
     print(f"-> Obteniendo lista completa de {nombre_tienda}...")
     driver = None
@@ -18,7 +22,7 @@ def obtener_lista_completa_invid():
 
     try:
         options = Options()
-        # El navegador ahora se ejecuta en modo invisible (headless)
+        # Ejecutamos Chrome en modo headless para servidores sin interfaz gráfica
         options.add_argument("--headless")
         options.add_argument("--disable-gpu")
         options.add_argument("--no-sandbox")
@@ -29,22 +33,24 @@ def obtener_lista_completa_invid():
             options=options
         )
 
+        # Paso 1: abrir la web de Invid y hacer login
         driver.get("https://www.invidcomputers.com")
-
         driver.execute_script("ajaxLogin('GET');")
 
         wait = WebDriverWait(driver, 20)
         user_input = wait.until(EC.visibility_of_element_located((By.ID, "usuari")))
-
         user_input.send_keys("23223648029")
         driver.find_element(By.ID, "passwd").send_keys("Arena123")
 
-        login_button = wait.until(EC.element_to_be_clickable((By.XPATH, '//input[@type="button" and contains(@value, "Login")]')))
+        login_button = wait.until(EC.element_to_be_clickable(
+            (By.XPATH, '//input[@type="button" and contains(@value, "Login")]')
+        ))
         driver.execute_script("arguments[0].click();", login_button)
 
-        # Pequeña espera para asegurar que el login se procese
+        # Esperamos a que el login se procese
         time.sleep(3)
 
+        # Paso 2: accedemos a “Mi Cuenta” y obtenemos el enlace al Excel
         mi_cuenta_btn = wait.until(
             EC.element_to_be_clickable((By.XPATH, '//a[@href="home_usuario.php" and contains(@class, "cambiar_cuenta_top")]'))
         )
@@ -55,6 +61,7 @@ def obtener_lista_completa_invid():
         )
         excel_url = descargar_btn.get_attribute("href")
 
+        # Paso 3: copiamos cookies y descargamos el Excel con requests
         cookies = driver.get_cookies()
         session = requests.Session()
         for cookie in cookies:
@@ -63,6 +70,7 @@ def obtener_lista_completa_invid():
         response = session.get(excel_url)
         response.raise_for_status()
 
+        # Convertimos el contenido a DataFrame
         df = pd.read_excel(BytesIO(response.content), skiprows=8, engine="openpyxl")
         df.columns = df.columns.str.strip()
 
@@ -74,34 +82,42 @@ def obtener_lista_completa_invid():
                 nombre = str(fila["Producto"]).strip()
                 precio_str = str(fila["Precio en ARS"]).replace("ARS", "").replace(",", ".").strip()
 
+                # Saltamos filas vacías o cabeceras
                 if not nombre or not precio_str or nombre.lower() == "producto" or precio_str.lower() == 'nan':
                     continue
 
                 precio_base = float(precio_str)
+                # Invid aplica 1.8% de recargo según el scraper original
                 precio_final = round(precio_base * 1.018)
 
                 resultados.append({
                     "busqueda": "LISTA_COMPLETA",
                     "sitio": nombre_tienda,
                     "producto": nombre,
-                    "precio": precio_final,  # Precio NUMÉRICO para la BD
-                    "link": "https://www.invidcomputers.com/"
+                    "precio": precio_final,  # Precio numérico para almacenar
+                    "link": "https://www.invidcomputers.com/",
+                    "imagen": "",
+                    "marca": "Sin Marca",
+                    "precio_anterior": 0,
+                    "porcentaje_descuento": 0
                 })
             except (ValueError, TypeError):
                 # Ignoramos filas con precios no válidos
                 continue
 
     except Exception as e:
+        # Registramos el error y retornamos lista vacía
         print(f"--- ERROR en el proceso de {nombre_tienda}: {e} ---")
         return []
     finally:
+        # Cerramos el navegador para liberar recursos
         if driver:
             driver.quit()
 
     print(f"-> Proceso de {nombre_tienda} finalizado. {len(resultados)} productos obtenidos.")
     return resultados
 
-# Este bloque te permite probar el archivo por separado si lo necesitas
+# Bloque de prueba local
 if __name__ == '__main__':
     def probar():
         print("Probando la obtención de la lista completa de Invid...")

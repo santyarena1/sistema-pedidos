@@ -210,88 +210,100 @@ function manejarRespuestaFinal(data, prod = "") {
 }
 
 
-// REEMPLAZA esta función en: static/js/buscador.js
-
+// REEMPLAZA por completo esta función en static/js/buscador.js
 function renderizarResultados() {
     const tablaDiv = document.getElementById("tabla-resultados");
     const tipo = document.getElementById("tipoBusqueda").value;
+
+    // Normalizamos y deduplicamos resultados según tipo (minorista, mayorista, masiva)
     let resultados = intercalarSegunTipo(tipo, todosLosResultados.map(r => ({
         ...r,
-        // Aseguramos precio_numeric y fetched_at uniforme
-        precio_numeric: typeof r.precio_numeric === 'number' 
-            ? r.precio_numeric 
-            : parseFloat(String(r.precio || "0").replace(/\$/g,"").replace(/\./g,"").replace(",",".")) || 0,
+        // normalizamos campos para ordenamiento y filtrado
+        precio_numeric: typeof r.precio_numeric === 'number'
+            ? r.precio_numeric
+            : parseFloat(String(r.precio || "0").replace(/\$/g,"").replace(/\./g,"").replace(",", ".")) || 0,
         fetched_at: r.fetched_at || r.actualizado || r.updated_at || null
     })));
 
-    // Filtros existentes
+    // --- filtros de tienda ---
     const tiendasSeleccionadas = Array.from(document.querySelectorAll('#filtro-tiendas input:checked')).map(cb => cb.value);
     if (tiendasSeleccionadas.length > 0) {
         resultados = resultados.filter(item => tiendasSeleccionadas.includes(item.sitio));
     }
+
+    // --- filtros de precio ---
     const precioMin = parseFloat(document.getElementById("precioMin").value) || 0;
     const precioMax = parseFloat(document.getElementById("precioMax").value) || Infinity;
     resultados = resultados.filter(item => item.precio_numeric >= precioMin && item.precio_numeric <= precioMax);
 
-    // Orden
+    // --- ordenamiento ---
     const orden = document.getElementById("ordenSelect").value;
     if (orden === "precio_asc") resultados.sort((a, b) => a.precio_numeric - b.precio_numeric);
     else if (orden === "precio_desc") resultados.sort((a, b) => b.precio_numeric - a.precio_numeric);
     else if (orden === "nombre_asc") resultados.sort((a, b) => (a.producto || "").localeCompare(b.producto || ""));
     else if (orden === "nombre_desc") resultados.sort((a, b) => (b.producto || "").localeCompare(a.producto || ""));
 
-    // Detectar tiendas esperadas que faltan (útil para debug)
+    // --- detectar minoristas esperados faltantes (solo debug) ---
     const tiendasPresentes = new Set(resultados.map(r => r.sitio));
     const esperadasMinoristas = [PG_NAME, TGS_NAME];
     const faltantes = (tipo === 'minoristas')
-      ? esperadasMinoristas.filter(t => !tiendasPresentes.has(t))
-      : [];
+        ? esperadasMinoristas.filter(t => !tiendasPresentes.has(t))
+        : [];
 
+    // --- construir HTML ---
     let html = `<h4>Resultados de Búsqueda</h4>`;
     if (faltantes.length) {
-      html += `<div class="alert alert-warning mb-2">⚠️ No llegaron resultados de: <b>${faltantes.join(', ')}</b>. Revisá logs/endpoint.</div>`;
+        html += `<div class="alert alert-warning mb-2">⚠️ No llegaron resultados de: <b>${faltantes.join(', ')}</b>. Revisá logs/endpoint.</div>`;
     }
 
     if (resultados.length > 0) {
         html += `<table class="table table-hover align-middle mt-3">
-                    <thead>
-                        <tr>
-                            <th style="width:5%;">Fijar</th>
-                            <th style="width:10%;">Imagen</th>
-                            <th style="width:15%;">Sitio</th>
-                            <th style="width:35%;">Producto</th>
-                            <th style="width:15%;">Precio</th>
-                            <th style="width:10%;">Actualizado</th>
-                            <th style="width:5%;">Link</th>
-                            <th style="width:10%;">Agregar</th>
-                        </tr>
-                    </thead>
-                    <tbody>`;
+            <thead>
+                <tr>
+                    <th style="width:5%;">Fijar</th>
+                    <th style="width:10%;">Imagen</th>
+                    <th style="width:15%;">Sitio</th>
+                    <th style="width:40%;">Producto</th>
+                    <th style="width:15%;">Precio</th>
+                    <th style="width:10%;">Actualizado</th>
+                    <th style="width:5%;">Link</th>
+                </tr>
+            </thead>
+            <tbody>`;
         const dtf = new Intl.DateTimeFormat('es-AR', { dateStyle: 'short', timeStyle: 'short' });
 
         resultados.forEach(item => {
-            const rowClass = item.sitio === TGS_NAME ? 'highlight-tgs' : '';
-            // Imagen: en mayoristas, “en blanco” para evitar imagen rota
+            const normalizadoSitio = NORMALIZAR_TIENDA(item.sitio);
+            const normalizadoTGS   = NORMALIZAR_TIENDA(TGS_NAME);
+            const esTGS = normalizadoSitio === normalizadoTGS || normalizadoSitio.includes('thegamershop');
+            const rowClass = esTGS ? 'highlight-tgs' : '';
+
+            // Imagen: en mayoristas dejamos un placeholder para evitar roturas
             let imagenHTML = '';
             if (tipo === 'mayoristas') {
                 imagenHTML = `<div class="img-ph"></div>`;
             } else {
                 const src = item.imagen && item.imagen.startsWith('http') ? item.imagen : '';
-                imagenHTML = src 
-                  ? `<img src="${src}" alt="${item.producto}" class="img-fluid rounded" style="max-height:60px;">`
-                  : `<div class="img-ph"></div>`;
+                imagenHTML = src
+                    ? `<img src="${src}" alt="${item.producto}" class="img-fluid rounded" style="max-height:60px;">`
+                    : `<div class="img-ph"></div>`;
             }
             const fechaTxt = item.fetched_at ? dtf.format(new Date(item.fetched_at)) : '-';
 
             html += `<tr class="${rowClass}">
-                <td><button class="btn btn-sm btn-outline-primary" onclick='abrirModalFijar(${JSON.stringify(item)})'><i class="fas fa-thumbtack"></i></button></td>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary" onclick='abrirModalFijar(${JSON.stringify(item)})'>
+                        <i class="fas fa-thumbtack"></i>
+                    </button>
+                </td>
                 <td>${imagenHTML}</td>
                 <td>${item.sitio || "-"}</td>
                 <td>${item.producto || "N/A"}</td>
                 <td class="fw-bold">${item.precio || formatearComoPesoArgentino(item.precio_numeric) || "N/A"}</td>
                 <td>${fechaTxt}</td>
-                <td><a href="${item.link || "#"}" target="_blank" class="btn btn-sm btn-outline-secondary">Ver</a></td>
-                <td><button class="btn btn-sm btn-danger" onclick='agregarAlCarrito(${JSON.stringify(item)})'><i class="fas fa-cart-plus"></i></button></td>
+                <td>
+                    <a href="${item.link || "#"}" target="_blank" class="btn btn-sm btn-outline-secondary">Ver</a>
+                </td>
             </tr>`;
         });
         html += "</tbody></table>";
@@ -300,9 +312,6 @@ function renderizarResultados() {
     }
     tablaDiv.innerHTML = html;
 }
-
-
-
 
 
 async function abrirModalFijar(item) {
@@ -356,11 +365,13 @@ function confirmarFijarProducto() {
     productoParaFijar = null;
 }
 
+// REEMPLAZA esta función en static/js/buscador.js
 function renderizarFijados() {
     const container = document.getElementById("productos-fijados-container");
     const divFijados = document.getElementById("productos-fijados");
     if (productosFijados.length === 0) {
         container.style.display = 'none';
+        divFijados.innerHTML = '';
         return;
     }
     container.style.display = 'block';
@@ -390,8 +401,17 @@ function renderizarFijados() {
             </div>
         `;
     });
+    // Añadimos un botón al final para enviar todos los fijados a Presupuestos
+    html += `
+        <div class="col-12 text-end mt-4">
+            <button class="btn btn-primary" onclick="enviarFijadosAPresupuestos()">
+                <i class="fas fa-paper-plane"></i> Enviar fijados a Presupuestos
+            </button>
+        </div>
+    `;
     divFijados.innerHTML = html;
 }
+
 
 function desfijarProducto(index) {
     productosFijados.splice(index, 1);
@@ -629,3 +649,155 @@ function formatearComoPesoArgentino(numero) {
     return formateador.format(numero);
 }
 
+// AGREGA esta función al final de static/js/buscador.js
+
+async function enviarFijadosAPresupuestos() {
+    if (productosFijados.length === 0) {
+        alert('No hay productos fijados para enviar.');
+        return;
+    }
+    // Preguntamos al usuario si quiere mantener el margen por categoría (Aceptar) o usar el coeficiente global (Cancelar)
+    const mantener = confirm('¿Desea mantener el margen por categoría configurado en cada ítem?\nAceptar: mantener márgenes de categoría.\nCancelar: aplicar el coeficiente global por defecto (1.3).');
+
+    // Construimos el payload para el backend
+    const payload = {
+        items: productosFijados.map(p => ({
+            sitio: p.sitio,
+            producto: p.producto,
+            precio: p.precio_numeric,         // costo base numérico
+            link: p.link,
+            categoria_nombre: p.categoriaNombre || null,
+            precioVentaCalculado: p.precioVentaCalculado || 0
+        })),
+        mantenerMarkupPorCategoria: mantener
+    };
+
+    try {
+        const response = await fetch('/presupuestos/recibir-fijados', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await response.json();
+        if (!response.ok || data.error) {
+            throw new Error(data.error || 'Error inesperado al enviar productos.');
+        }
+        // Limpiamos los fijados y redirigimos a la página del presupuesto
+        productosFijados = [];
+        renderizarFijados();
+        // data.redirect_url debería indicar a dónde ir; de lo contrario usamos /presupuestos
+        window.location.href = data.redirect_url || `/presupuestos?id=${data.presupuesto_id || ''}`;
+    } catch (error) {
+        console.error('Error al enviar fijados:', error);
+        alert(`Hubo un problema al enviar los productos fijados: ${error.message}`);
+    }
+}
+
+
+// AGREGA estas funciones al final de static/js/buscador.js
+
+async function abrirModalMayoristas() {
+    try {
+        const response = await fetch('/api/mayoristas/estado');
+        const data = await response.json();
+        // Lista fija de mayoristas conocidos (coinciden con los scrapers)
+        const sitiosConocidos = ['Invid','Newbytes','AIR','POLYTECH','The Gamer Shop'];
+        // Convertimos el array en diccionario para acceso rápido por sitio
+        const dictPorSitio = {};
+        if (Array.isArray(data)) {
+            data.forEach(row => {
+                if (row && row.sitio) {
+                    dictPorSitio[row.sitio] = row;
+                }
+            });
+        }
+
+        const tbody = document.getElementById('tabla-estado-mayoristas');
+        let html = '';
+        sitiosConocidos.forEach(sitio => {
+            const info = dictPorSitio[sitio] || {};
+            const cant = info.cantidad_productos || 0;
+            const errores = info.cantidad_errores || 0;
+            const fecha = info.ultima_actualizacion
+                ? new Date(info.ultima_actualizacion).toLocaleString('es-AR')
+                : '-';
+            html += `
+                <tr>
+                    <td>${sitio}</td>
+                    <td>${cant}</td>
+                    <td>${fecha}</td>
+                    <td>${errores}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary" onclick="actualizarMayorista('${sitio}')">
+                            Actualizar ahora
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="verProductosMayorista('{{ sitio }}')">Ver productos</button>
+                    </td>
+                </tr>
+            `;
+        });
+        tbody.innerHTML = html;
+        const modal = new bootstrap.Modal(document.getElementById('modalMayoristas'));
+        modal.show();
+    } catch (error) {
+        alert('Error al obtener el estado de los mayoristas: ' + error.message);
+    }
+}
+
+
+async function actualizarMayorista(sitio) {
+    try {
+        // Cambiamos el texto del botón para indicar progreso
+        const btn = event.target;
+        const original = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = 'Actualizando...';
+        const response = await fetch(`/api/mayoristas/${encodeURIComponent(sitio)}/actualizar`, {
+            method: 'POST'
+        });
+        const data = await response.json();
+        if (data.error) {
+            alert(`Error al actualizar ${sitio}: ${data.error}`);
+        } else {
+            alert(`${sitio} actualizado. Productos insertados: ${data.cantidad_productos}`);
+        }
+        // Refrescamos la tabla de mayoristas tras actualizar
+        await abrirModalMayoristas();
+        // Restauramos el texto del botón (en caso de que esté visible)
+        btn.disabled = false;
+        btn.textContent = original;
+    } catch (error) {
+        alert('Error al actualizar el mayorista: ' + error.message);
+    }
+}
+
+async function verProductosMayorista(sitio) {
+    try {
+        const resp = await fetch(`/api/mayoristas/${encodeURIComponent(sitio)}/productos`);
+        const data = await resp.json();
+        const tbody = document.getElementById('tabla-productos-mayorista');
+        let html = '';
+        if (Array.isArray(data) && data.length > 0) {
+            data.forEach(item => {
+                const fecha = item.actualizado
+                    ? new Date(item.actualizado).toLocaleString('es-AR')
+                    : '-';
+                html += `
+                    <tr>
+                        <td>${item.producto}</td>
+                        <td>${formatearComoPesoArgentino(item.precio)}</td>
+                        <td>${fecha}</td>
+                    </tr>
+                `;
+            });
+        } else {
+            html = `<tr><td colspan="3" class="text-center text-muted">No hay productos para mostrar.</td></tr>`;
+        }
+        tbody.innerHTML = html;
+        document.getElementById('tituloModalProductosMayorista').textContent = `Productos de ${sitio}`;
+        const modal = new bootstrap.Modal(document.getElementById('modalProductosMayorista'));
+        modal.show();
+    } catch (error) {
+        alert('Error al obtener los productos del mayorista: ' + error.message);
+    }
+}

@@ -105,8 +105,10 @@
             </div>
         </div>
         <div class="d-flex align-items-center mt-3">
-            <button class="btn btn-outline-dark me-2" onclick="window.location.href='/carrito'">Ver Carrito</button>
             <button class="btn btn-outline-secondary" onclick="window.location.href='/presupuestos'">Crear Presupuesto</button>
+            <button class="btn btn-info ms-2" onclick="abrirModalMayoristas()">
+                <i class="fas fa-sync-alt"></i> Mayoristas
+            </button>
             <a class="ms-auto text-decoration-none" data-bs-toggle="collapse" href="#filtrosAvanzados" role="button">
                 Filtros Avanzados <i class="fas fa-chevron-down"></i>
             </a>
@@ -224,6 +226,54 @@
       </div>
     </div>
 </div>
-
+<!-- Modal de Mayoristas -->
+<div class="modal fade" id="modalMayoristas" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Estado de Mayoristas</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <table class="table table-striped">
+            <thead>
+              <tr>
+                <th>Sitio</th>
+                <th># Productos</th>
+                <th>Última actualización</th>
+                <th># Errores</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="tabla-estado-mayoristas"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+</div>
+<!-- Modal para listar productos de un mayorista -->
+<div class="modal fade" id="modalProductosMayorista" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="tituloModalProductosMayorista">Productos del mayorista</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <table class="table table-striped">
+            <thead>
+              <tr>
+                <th>Producto</th>
+                <th>Precio</th>
+                <th>Actualizado</th>
+              </tr>
+            </thead>
+            <tbody id="tabla-productos-mayorista"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+</div>
+  
 </body>
 </html>

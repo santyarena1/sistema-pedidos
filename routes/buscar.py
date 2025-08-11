@@ -1,498 +1,451 @@
-# routes/buscar.py
-# -*- coding: utf-8 -*-
-import os
+from flask import Blueprint, request, jsonify, render_template
+import psycopg2.extras
+from threading import Thread
+import re
+import datetime
 import json
-from datetime import datetime, timedelta, timezone
-from typing import List, Dict, Any, Tuple, Optional
+import time
+from datetime import timedelta
 
-from flask import Blueprint, request, jsonify, current_app
 
-# ============================================
-# Configuración
-# ============================================
-buscar_bp = Blueprint("buscar", __name__, url_prefix="/buscar")
 
-TZ_UTC = timezone.utc
-DIAS_FRESCURA = int(os.getenv("FRESHNESS_DAYS", "3"))
-DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 
-MINORISTAS_ESPERADOS = ["PreciosGamer", "The Gamer Shop"]
-MAYORISTAS_ESPERADOS = [
-    "Maximus", "FullH4rd Mayorista", "HyperGaming Mayorista", "CompraGamer Mayorista"
-]
+# --- IMPORTACIONES ---
+# Usamos PreciosGamer como fuente principal para minoristas.
+# Tus scrapers de mayoristas como newbytes, invid, etc., se ejecutan por separado
+# con el planificador APScheduler, por lo que no se importan aquí.
+from services.preciosgamer_scraper import buscar_en_preciosgamer
+from db.connection import get_db_connection
 
-# ============================================
-# Conexión a BD (intenta db.py; si no, psycopg2; si no, sin BD)
-# ============================================
-_modo_bd = None
-_mod_bd = None      # módulo db.py o pool
-_psycopg2 = None
+buscar_bp = Blueprint("buscar", __name__)
+# Registrar la última vez que se intentó actualizar sin resultados
+ULTIMOS_SIN_RESULTADO = {}
 
-def _inicializar_bd_una_vez():
-    """Detecta cómo conectarnos a la BD (tu db.py o psycopg2)."""
-    global _modo_bd, _mod_bd, _psycopg2
-    if _modo_bd is not None:
+
+# Lock para evitar búsquedas duplicadas
+ACTUALIZACIONES_EN_CURSO = set()
+
+def reemplazar_resultados_de_sitio(sitio: str, items: list):
+    """
+    Reemplaza todos los productos de un sitio por una nueva lista.
+    Registra una auditoría con la cantidad de productos insertados, los errores y la duración.
+    """
+    if not sitio:
         return
+    inicio = time.time()
+    errores = []
+    inserted = 0
 
-    # 1) Intentar usar tu módulo db.py (nombres usuales)
+    # Aseguramos que todos los ítems tengan las claves opcionales requeridas por la tabla
+    for it in (items or []):
+        # Campos opcionales que podrían faltar según el scraper
+        it.setdefault('imagen', '')
+        it.setdefault('marca', 'Sin Marca')
+        it.setdefault('precio_anterior', 0)
+        it.setdefault('porcentaje_descuento', 0)
+
+    conn = None
     try:
-        import db as _mydb
-        if hasattr(_mydb, "get_connection"):
-            _modo_bd = "mod_get_connection"; _mod_bd = _mydb; return
-        if hasattr(_mydb, "get_db"):
-            _modo_bd = "mod_get_db"; _mod_bd = _mydb; return
-        if hasattr(_mydb, "pool"):
-            _modo_bd = "mod_pool"; _mod_bd = _mydb.pool; return
-    except Exception:
-        pass
-
-    # 2) Fallback psycopg2 con DSN
-    if DATABASE_URL:
-        try:
-            import psycopg2
-            import psycopg2.extras
-            _psycopg2 = psycopg2
-            _modo_bd = "psycopg2_dsn"
-            return
-        except Exception as e:
-            try:
-                current_app.logger.error("psycopg2 no disponible (%s). Instalar: pip install psycopg2-binary", e)
-            except Exception:
-                print("psycopg2 no disponible. Instalar: pip install psycopg2-binary")
-
-    # 3) Sin BD (modo sin cache)
-    _modo_bd = "sin_bd"
-    try:
-        current_app.logger.warning("DATABASE_URL no configurada o sin psycopg2: se ejecuta sin BD (solo live/simulado).")
-    except Exception:
-        print("ADVERTENCIA: Sin BD. Se ejecuta sin cache.")
-
-def _obtener_conexion():
-    """Devuelve una conexión a BD según el modo detectado."""
-    _inicializar_bd_una_vez()
-    if _modo_bd == "mod_get_connection":
-        return _mod_bd.get_connection()
-    if _modo_bd == "mod_get_db":
-        return _mod_bd.get_db()
-    if _modo_bd == "mod_pool":
-        return _mod_bd.getconn()
-    if _modo_bd == "psycopg2_dsn":
-        return _psycopg2.connect(DATABASE_URL)
-    return None
-
-def _devolver_conexion(conn):
-    """Devuelve conexión al pool si aplica."""
-    try:
-        if conn is None:
-            return
-        if _modo_bd == "mod_pool":
-            _mod_bd.putconn(conn)
-        else:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            # Eliminamos productos del sitio
+            cur.execute("DELETE FROM productos WHERE sitio = %s", (sitio,))
+            # Insertamos los nuevos
+            if items:
+                psycopg2.extras.execute_batch(cur, """
+                    INSERT INTO productos (
+                        busqueda, sitio, producto, precio, link, imagen,
+                        marca, precio_anterior, porcentaje_descuento, actualizado
+                    ) VALUES (
+                        %(busqueda)s, %(sitio)s, %(producto)s, %(precio)s, %(link)s, %(imagen)s,
+                        %(marca)s, %(precio_anterior)s, %(porcentaje_descuento)s, NOW()
+                    )
+                """, items)
+                inserted = len(items)
+            conn.commit()
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        errores.append(str(e))
+    finally:
+        if conn:
             conn.close()
-    except Exception:
-        pass
 
-# ============================================
-# Utilidades
-# ============================================
-def iso_utc(dt: Optional[datetime] = None) -> str:
-    if not isinstance(dt, datetime):
-        dt = datetime.now(TZ_UTC)
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=TZ_UTC)
-    return dt.astimezone(TZ_UTC).isoformat().replace("+00:00", "Z")
-
-def precio_a_float(precio: Any) -> float:
-    if precio is None:
-        return 0.0
-    if isinstance(precio, (int, float)):
-        return float(precio)
-    s = str(precio)
-    s = s.replace("$", "").replace("USD", "").replace("ARS", "").strip()
-    s = s.replace(".", "").replace(" ", "")
-    s = s.replace(",", ".")
+    # Guardamos la auditoría con las métricas recolectadas
+    duracion_ms = int((time.time() - inicio) * 1000)
     try:
-        return float(s)
-    except Exception:
-        return 0.0
-
-def normalizar_item(it: Dict[str, Any]) -> Dict[str, Any]:
-    sitio = it.get("sitio") or ""
-    producto = it.get("producto") or ""
-    precio = it.get("precio")
-    precio_numeric = it.get("precio_numeric")
-    if precio_numeric is None:
-        precio_numeric = precio_a_float(precio)
-    link = (it.get("link") or "").strip()
-    imagen = it.get("imagen")
-    sku = it.get("sku")
-    origen = it.get("origen") or "live"
-    fetched_at = it.get("fetched_at") or iso_utc()
-    return {
-        "sitio": sitio,
-        "producto": producto,
-        "precio": precio if precio is not None else (f"$ {int(precio_numeric):,}".replace(",", ".")),
-        "precio_numeric": float(precio_numeric),
-        "link": link,
-        "imagen": imagen if imagen else None,
-        "sku": sku,
-        "origen": origen,
-        "fetched_at": fetched_at
-    }
-
-def dedup(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    vistos = set()
-    out = []
-    for it in items:
-        clave = (str(it.get("sitio","")).strip().lower(), str(it.get("link","")).strip())
-        if clave in vistos:
-            continue
-        vistos.add(clave)
-        out.append(it)
-    return out
-
-def contar_por_tienda(items: List[Dict[str, Any]]) -> Dict[str, int]:
-    d = {}
-    for it in items:
-        s = it.get("sitio") or "?"
-        d[s] = d.get(s, 0) + 1
-    return d
-
-def round_robin(grupos: List[List[Dict[str, Any]]]) -> List[Dict[str, Any]]:
-    salida = []
-    i = 0
-    while True:
-        agrego = False
-        for g in grupos:
-            if i < len(g):
-                salida.append(g[i])
-                agrego = True
-        if not agrego:
-            break
-        i += 1
-    return salida
-
-# ============================================
-# BD helpers
-# ============================================
-def bootstrap_bd():
-    _inicializar_bd_una_vez()
-    if _modo_bd == "sin_bd":
-        return
-    sql = """
-    CREATE TABLE IF NOT EXISTS precios (
-        id BIGSERIAL PRIMARY KEY,
-        sitio TEXT NOT NULL,
-        producto TEXT,
-        precio TEXT,
-        precio_numeric DOUBLE PRECISION,
-        link TEXT,
-        imagen TEXT,
-        sku TEXT,
-        updated_at TIMESTAMPTZ DEFAULT NOW()
-    );
-    CREATE UNIQUE INDEX IF NOT EXISTS ux_precios_sitio_link
-        ON precios (LOWER(sitio), COALESCE(link,''));
-    CREATE INDEX IF NOT EXISTS ix_precios_updated_at ON precios (updated_at DESC);
-    CREATE INDEX IF NOT EXISTS ix_precios_sitio ON precios (LOWER(sitio));
-    """
-    conn = _obtener_conexion()
-    if not conn:
-        return
-    try:
-        cur = conn.cursor()
-        cur.execute(sql)
-        conn.commit()
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO auditoria_mayoristas (
+                    sitio, ultima_actualizacion, cantidad_productos,
+                    cantidad_errores, detalle_errores, duracion_ms
+                ) VALUES (%s, NOW(), %s, %s, %s, %s)
+            """, (
+                sitio,
+                inserted,
+                len(errores),
+                json.dumps(errores) if errores else None,
+                duracion_ms
+            ))
+            conn.commit()
+    except Exception as e:
+        print(f"-> ERROR guardando auditoría de {sitio}: {e}")
     finally:
-        _devolver_conexion(conn)
+        if conn:
+            conn.close()
 
-def guardar_resultados_db(items: List[Dict[str, Any]]) -> None:
+
+# Endpoint stub para IA (fase 2)
+@buscar_bp.route("/ia/categoria-sugerida", methods=["POST"])
+def categoria_sugerida():
     """
-    FUNCIÓN QUE USA TU app.py.
-    Guarda/upsertea resultados en la tabla precios.
+    Stub que, dado un título de producto, devuelve una categoría sugerida con score.
+    Esta implementación no usa un modelo real y devuelve siempre None.
     """
-    if not items or _modo_bd == "sin_bd":
+    data = request.get_json() or {}
+    titulo = data.get('titulo_producto') or ''
+    # TODO: integrar modelo real en una fase posterior
+    return jsonify({"titulo": titulo, "categoria": None, "score": 0.0})
+
+
+# --- FUNCIÓN DE GUARDADO (SIN CAMBIOS) ---
+def guardar_resultados_db(lista_de_resultados):
+    if not lista_de_resultados:
         return
-    sql = """
-    INSERT INTO precios (sitio, producto, precio, precio_numeric, link, imagen, sku, updated_at)
-    VALUES (%(sitio)s, %(producto)s, %(precio)s, %(precio_numeric)s, %(link)s, %(imagen)s, %(sku)s, %(updated_at)s)
-    ON CONFLICT (LOWER(sitio), COALESCE(link,'')) DO UPDATE SET
-        producto = EXCLUDED.producto,
-        precio = EXCLUDED.precio,
-        precio_numeric = EXCLUDED.precio_numeric,
-        imagen = EXCLUDED.imagen,
-        sku = EXCLUDED.sku,
-        updated_at = EXCLUDED.updated_at;
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            # Determinamos si es una actualización de mayoristas o una búsqueda de minoristas
+            busqueda_termino = lista_de_resultados[0]['busqueda']
+            if busqueda_termino == "LISTA_COMPLETA":
+                # Si es una lista completa, borramos todos los productos de ese sitio
+                sitio = lista_de_resultados[0]['sitio']
+                print(f"-> Limpiando lista completa para el mayorista: '{sitio}'")
+                cur.execute("DELETE FROM productos WHERE sitio = %s", (sitio,))
+            else:
+                # Si es una búsqueda normal, borramos solo los resultados de esa búsqueda
+                print(f"-> Limpiando resultados antiguos para la búsqueda: '{busqueda_termino}'")
+                cur.execute("DELETE FROM productos WHERE busqueda = %s", (busqueda_termino,))
+
+            psycopg2.extras.execute_batch(cur, """
+                INSERT INTO productos (
+                    busqueda, sitio, producto, precio, link, imagen, 
+                    marca, precio_anterior, porcentaje_descuento, actualizado
+                ) VALUES (
+                    %(busqueda)s, %(sitio)s, %(producto)s, %(precio)s, %(link)s, %(imagen)s,
+                    %(marca)s, %(precio_anterior)s, %(porcentaje_descuento)s, NOW()
+                )
+            """, lista_de_resultados)
+            conn.commit()
+            print(f"-> ¡Éxito! {len(lista_de_resultados)} productos guardados/actualizados en la BD.")
+    except Exception as e:
+        print(f"-> ERROR GRAVE al guardar en la base de datos: {e}")
+        if conn: conn.rollback()
+    finally:
+        if conn: conn.close()
+
+# --- BÚSQUEDA EN SEGUNDO PLANO (PARA MINORISTAS Y MASIVA) ---
+def ejecutar_busqueda_en_segundo_plano(producto):
+    def correr_busqueda_unica():
+        try:
+            # Lista de tiendas permitidas (sin TheGamerShop porque se incluye siempre)
+            tiendas_permitidas = {
+                "Acuario Insumos", "Compra Gamer", "Compugarden", "Full H4rd",
+                "Gaming City", "Integrados Argentinos", "Maximus", "Megasoft",
+                "Mexx", "Scp Hardstore"
+            }
+            def normalizar_nombre(nombre):
+                return re.sub(r'[\s\W_]+', '', nombre).lower()
+            tiendas_permitidas_norm = {normalizar_nombre(t) for t in tiendas_permitidas}
+
+            # Ejecutamos ambos scrapers
+            resultados_pg = buscar_en_preciosgamer(producto) or []
+            
+
+            resultados_comb = []
+
+            # Filtramos resultados de PreciosGamer por tiendas permitidas
+            for res in resultados_pg:
+                nombre_tienda_norm = normalizar_nombre(res.get('sitio', ''))
+                if nombre_tienda_norm in tiendas_permitidas_norm:
+                    res.setdefault('imagen', '')
+                    res.setdefault('marca', 'Sin Marca')
+                    res.setdefault('precio_anterior', 0)
+                    res.setdefault('porcentaje_descuento', 0)
+                    resultados_comb.append(res)
+
+            # Agregamos todos los resultados de TheGamerShop (siempre se permiten)
+            
+
+            
+            print(f"-> Después de filtrar, quedan {len(resultados_comb)} resultados combinados.")
+
+            if resultados_comb:
+                guardar_resultados_db(resultados_comb)
+
+            print(f"-> Actualización en 2do plano para '{producto}' finalizada.")
+        finally:
+            if producto in ACTUALIZACIONES_EN_CURSO:
+                ACTUALIZACIONES_EN_CURSO.remove(producto)
+                print(f"-> Lock liberado para '{producto}'.")
+
+    thread = Thread(target=correr_busqueda_unica)
+    thread.start()
+
+
+
+
+
+@buscar_bp.route("/comparar", methods=["GET"])
+def comparar_productos():
     """
-    ahora = datetime.now(TZ_UTC)
-    payload = []
-    for it in items:
-        norm = normalizar_item(it)
-        payload.append({
-            "sitio": norm.get("sitio"),
-            "producto": norm.get("producto"),
-            "precio": norm.get("precio"),
-            "precio_numeric": float(norm.get("precio_numeric") or 0),
-            "link": (norm.get("link") or ""),
-            "imagen": norm.get("imagen"),
-            "sku": norm.get("sku"),
-            "updated_at": ahora
+    Permite buscar un producto en tres modos:
+      - 'minorista': retorna los resultados de productos busqueda=producto; si no hay datos frescos, ejecuta scraping y devuelve estado 'actualizando'.
+      - 'mayorista': retorna solo mayoristas (Invid, NewBytes, AIR, POLYTECH y TheGamerShop) por coincidencia parcial.
+      - 'masiva': combina ambos conjuntos, y si no hay minoristas, ejecuta scraping y devuelve estado 'actualizando'.
+    """
+    producto = request.args.get("producto", "").lower().strip()
+    tipo = request.args.get("tipo", "minorista").lower()
+
+    if not producto:
+        return jsonify({"error": "Falta el parámetro 'producto'"}), 400
+
+    # Evitamos lanzar múltiples scrapers para el mismo término (solo minorista/masiva)
+    if tipo in ["minorista", "masiva"] and producto in ACTUALIZACIONES_EN_CURSO:
+        return jsonify({
+            "estado": "actualizando",
+            "mensaje": "Ya hay una actualización en curso para este producto."
         })
-    conn = _obtener_conexion()
-    if not conn:
-        return
+
+    conn = None
     try:
-        cur = conn.cursor()
-        cur.executemany(sql, payload)
-        conn.commit()
-    finally:
-        _devolver_conexion(conn)
+        conn = get_db_connection()
+        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            intervalo_minorista = "NOW() - INTERVAL '11 hours'"
 
-# Alias de compatibilidad (por si en algún lado quedó el nombre en inglés)
-db_upsert_many = guardar_resultados_db
+            # -------- Búsqueda en mayoristas --------
+            if tipo == "mayorista":
+                sitios = ('NewBytes', 'Invid', 'AIR', 'POLYTECH', )
+                cur.execute("""
+                    SELECT * FROM productos
+                    WHERE sitio IN %s AND LOWER(producto) ILIKE %s
+                    ORDER BY precio ASC
+                    LIMIT 200
+                """, (sitios, f"%{producto}%"))
+                resultados_actuales = [dict(row) for row in cur.fetchall()]
 
-def buscar_en_bd_por_sitio(sitio: str, texto: str, dias_frescura: int = DIAS_FRESCURA) -> List[Dict[str, Any]]:
-    """Lee de BD resultados frescos por sitio y texto."""
-    if _modo_bd == "sin_bd":
-        return []
-    fecha_min = datetime.now(TZ_UTC) - timedelta(days=dias_frescura)
-    sql = """
-    SELECT sitio, producto, precio, precio_numeric, link, imagen, sku, updated_at
-    FROM precios
-    WHERE LOWER(sitio) = LOWER(%s)
-      AND updated_at >= %s
-      AND (
-            producto ILIKE %s
-         OR  sku ILIKE %s
-         OR  link ILIKE %s
-      )
-    ORDER BY updated_at DESC
-    LIMIT 200
-    """
-    conn = _obtener_conexion()
-    if not conn:
-        return []
-    try:
-        cur = conn.cursor()
-        like = f"%{texto}%"
-        cur.execute(sql, (sitio, fecha_min, like, like, like))
-        filas = cur.fetchall()
-        salida = []
-        for (sitio, producto, precio, precio_numeric, link, imagen, sku, updated_at) in filas:
-            salida.append(normalizar_item({
-                "sitio": sitio,
-                "producto": producto,
-                "precio": precio,
-                "precio_numeric": float(precio_numeric) if precio_numeric is not None else None,
-                "link": link,
-                "imagen": imagen,
-                "sku": sku,
-                "origen": "cache",
-                "fetched_at": iso_utc(updated_at) if updated_at else iso_utc()
-            }))
-        return salida
-    finally:
-        _devolver_conexion(conn)
+            # -------- Búsqueda masiva --------
+            elif tipo == "masiva":
+                sitios_mayoristas = ('NewBytes', 'Invid', 'AIR', 'POLYTECH', )
+                cur.execute(f"""
+                    SELECT * FROM productos
+                    WHERE (busqueda = %s AND actualizado > {intervalo_minorista})
+                       OR (sitio IN %s AND LOWER(producto) ILIKE %s)
+                    ORDER BY precio ASC
+                """, (producto, sitios_mayoristas, f"%{producto}%"))
+                resultados_actuales = [dict(row) for row in cur.fetchall()]
 
-# ============================================
-# Scrapers (placeholder: conectá tus reales acá)
-# ============================================
-def scrape_preciosgamer(texto: str) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
-    # TODO: implementar scraping real
-    items: List[Dict[str, Any]] = []
-    dbg = {"url": f"https://www.preciosgamer.com/?q={texto}", "status": "simulado"}
-    return items, dbg
+                # Contamos si hay minoristas frescos
+                cur.execute(f"""
+                    SELECT COUNT(*) FROM productos
+                    WHERE busqueda = %s AND actualizado > {intervalo_minorista}
+                """, (producto,))
+                minorista_count = cur.fetchone()[0]
 
-def scrape_tgs(texto: str) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
-    # TODO: implementar scraping real
-    items: List[Dict[str, Any]] = []
-    dbg = {"url": f"https://thegamershop.com/?q={texto}", "status": "simulado"}
-    return items, dbg
+                if minorista_count == 0:
+                    ahora = datetime.datetime.utcnow()
+                    ultimo_intento = ULTIMOS_SIN_RESULTADO.get(producto)
+                    # solo intentamos si ha pasado más de 1 hora desde el último intento fallido
+                    if not ultimo_intento or (ahora - ultimo_intento).total_seconds() >= 3600:
+                        ULTIMOS_SIN_RESULTADO[producto] = ahora
+                        ACTUALIZACIONES_EN_CURSO.add(producto)
+                        ejecutar_busqueda_en_segundo_plano(producto)
 
-def scrape_mayorista(nombre_sitio: str, texto: str) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
-    # TODO: implementar scraping real por mayorista
-    # Importante: devolver imagen=None para mayoristas (blanco en el front)
-    items: List[Dict[str, Any]] = []
-    dbg = {"site": nombre_sitio, "status": "simulado"}
-    return items, dbg
+                    # Formateamos precios de mayoristas antes de responder
+                    for r in resultados_actuales:
+                        if r.get('precio') is not None:
+                            valor = float(r['precio'])
+                            r['precio'] = f"${valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
-# ============================================
-# Búsquedas por tipo (lógicas principales)
-# ============================================
-def buscar_minoristas(texto: str, live: bool = True) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
-    errores = {}
-    dbg_extra = {}
-    items: List[Dict[str, Any]] = []
+                    return jsonify({
+                        "estado": "actualizando",
+                        "mensaje": "Buscando minoristas por primera vez...",
+                        "resultados": resultados_actuales
+                    })
 
-    # Cache BD
-    for sitio in MINORISTAS_ESPERADOS:
-        cache = buscar_en_bd_por_sitio(sitio, texto)
-        items.extend([normalizar_item({**it, "origen": "cache"}) for it in cache])
+            # -------- Búsqueda minorista --------
+            else:  # tipo == "minorista"
+                cur.execute(f"""
+                    SELECT * FROM productos
+                    WHERE busqueda = %s AND actualizado > {intervalo_minorista}
+                    ORDER BY precio ASC
+                """, (producto,))
+                resultados_actuales = [dict(row) for row in cur.fetchall()]
 
-    # Live
-    if live:
-        try:
-            res, dbg = scrape_preciosgamer(texto)
-            dbg_extra["PreciosGamer"] = dbg
-            res = [normalizar_item({**it, "sitio":"PreciosGamer", "origen":"live"}) for it in res]
-            items.extend(res); guardar_resultados_db(res)
-        except Exception as e:
-            errores["PreciosGamer"] = str(e)
+                if not resultados_actuales:
+                    ahora = datetime.datetime.utcnow()
+                    ultimo_intento = ULTIMOS_SIN_RESULTADO.get(producto)
+                    # evitamos repetir la búsqueda si ya se intentó hace menos de 1 hora
+                    if ultimo_intento and (ahora - ultimo_intento).total_seconds() < 3600:
+                        return jsonify([])
 
-        try:
-            res, dbg = scrape_tgs(texto)
-            dbg_extra["The Gamer Shop"] = dbg
-            res = [normalizar_item({**it, "sitio":"The Gamer Shop", "origen":"live"}) for it in res]
-            items.extend(res); guardar_resultados_db(res)
-        except Exception as e:
-            errores["The Gamer Shop"] = str(e)
+                    ULTIMOS_SIN_RESULTADO[producto] = ahora
+                    ACTUALIZACIONES_EN_CURSO.add(producto)
+                    ejecutar_busqueda_en_segundo_plano(producto)
+                    return jsonify({
+                        "estado": "actualizando",
+                        "mensaje": "Buscando este producto por primera vez..."
+                    })
 
-    items = dedup(items)
-    return items, {"errores": errores, "scrape_debug": dbg_extra}
+            # Formateo final de precios para cualquier tipo de búsqueda con datos listos
+            for r in resultados_actuales:
+                if r.get('precio') is not None:
+                    valor = float(r['precio'])
+                    r['precio'] = f"${valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
-def buscar_mayoristas(texto: str, live: bool = True) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
-    errores = {}
-    dbg_extra = {}
-    items: List[Dict[str, Any]] = []
-
-    # Cache BD
-    for sitio in MAYORISTAS_ESPERADOS:
-        cache = buscar_en_bd_por_sitio(sitio, texto)
-        cache = [normalizar_item({**it, "imagen": None, "origen":"cache"}) for it in cache]
-        items.extend(cache)
-
-    # Live
-    if live:
-        for sitio in MAYORISTAS_ESPERADOS:
-            try:
-                res, dbg = scrape_mayorista(sitio, texto)
-                dbg_extra[sitio] = dbg
-                res = [normalizar_item({**it, "sitio": sitio, "imagen": None, "origen":"live"}) for it in res]
-                items.extend(res); guardar_resultados_db(res)
-            except Exception as e:
-                errores[sitio] = str(e)
-
-    items = dedup(items)
-    return items, {"errores": errores, "scrape_debug": dbg_extra}
-
-def buscar_masiva(texto: str, live: bool = True) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
-    min_items, min_dbg = buscar_minoristas(texto, live=live)
-    may_items, may_dbg = buscar_mayoristas(texto, live=live)
-    items = dedup(min_items + may_items)
-
-    # Intercalado por tienda (para “masiva”)
-    grupos: Dict[str, List[Dict[str, Any]]] = {}
-    for it in items:
-        grupos.setdefault(it["sitio"], []).append(it)
-    intercalado = round_robin(list(grupos.values()))
-
-    dbg_all = {"minoristas": min_dbg, "mayoristas": may_dbg}
-    return intercalado, dbg_all
-
-# ============================================
-# Helpers de debug y logging
-# ============================================
-def construir_debug(items: List[Dict[str, Any]], esperados: List[str], extras: Dict[str, Any]):
-    presentes = set([it.get("sitio") for it in items])
-    faltantes = [s for s in esperados if s not in presentes]
-    return {
-        "total": len(items),
-        "por_tienda": contar_por_tienda(items),
-        "faltantes": faltantes,
-        **(extras or {})
-    }
-
-def registrar_busqueda(producto: str, tipo: str, items: List[Dict[str, Any]], bloque_debug: Dict[str, Any]):
-    try:
-        payload = {
-            "producto": producto,
-            "tipo": tipo,
-            "total": len(items),
-            "por_tienda": contar_por_tienda(items),
-            "debug": bloque_debug,
-            "items": items
-        }
-        current_app.logger.info("search_results %s", json.dumps(payload, ensure_ascii=False))
-    except Exception:
-        pass
-
-# ============================================
-# Endpoint HTTP /buscar
-# ============================================
-@buscar_bp.route("", methods=["GET", "POST"])
-def endpoint_buscar():
-    """
-    Body/Query:
-      q: texto (obligatorio)
-      tipo: minoristas | mayoristas | masiva (default minoristas)
-      live: true/false (default true)
-      debug: true/false (default false)
-    """
-    bootstrap_bd()
-
-    payload = request.get_json(silent=True) or {}
-    q = payload.get("q") or request.args.get("q") or ""
-    tipo = (payload.get("tipo") or request.args.get("tipo") or "minoristas").strip().lower()
-    live = payload.get("live")
-    if live is None:
-        live = (request.args.get("live", "true").lower() != "false")
-    want_debug = payload.get("debug")
-    if want_debug is None:
-        want_debug = (request.args.get("debug", "false").lower() == "true")
-
-    if not q:
-        return jsonify({"ok": False, "error": "Falta parámetro 'q'."}), 400
-
-    try:
-        if tipo == "minoristas":
-            items, dbg = buscar_minoristas(q, live=live)
-            debug_block = construir_debug(items, MINORISTAS_ESPERADOS, dbg)
-        elif tipo == "mayoristas":
-            items, dbg = buscar_mayoristas(q, live=live)
-            debug_block = construir_debug(items, MAYORISTAS_ESPERADOS, dbg)
-        elif tipo == "masiva":
-            items, dbg = buscar_masiva(q, live=live)
-            debug_block = construir_debug(items, MINORISTAS_ESPERADOS + MAYORISTAS_ESPERADOS, dbg)
-        else:
-            return jsonify({"ok": False, "error": f"Tipo desconocido: {tipo}"}), 400
-
-        registrar_busqueda(q, tipo, items, debug_block)
-
-        resp = {
-            "ok": True,
-            "tipo": tipo,
-            "query": q,
-            "total": len(items),
-            "resultados": items
-        }
-        if want_debug:
-            resp["debug"] = debug_block
-
-        return jsonify(resp), 200
+            return jsonify(resultados_actuales)
 
     except Exception as e:
-        current_app.logger.exception("Error en /buscar")
-        return jsonify({"ok": False, "error": str(e)}), 500
+        print(f"-> Error en /comparar: {e}")
+        return jsonify({"error": "Error interno en el servidor."}), 500
+    finally:
+        if conn: conn.close()
 
-# ============================================
-# Funciones auxiliares para tareas en app.py
-# ============================================
-def actualizar_mayoristas_y_guardar(texto: str) -> Dict[str, Any]:
-    """
-    Para usar en tu tarea de app.py.
-    Busca mayoristas (live=True), guarda en BD y devuelve un resumen.
-    """
-    bootstrap_bd()
-    items, dbg = buscar_mayoristas(texto, live=True)
-    # (Ya se guardan dentro de buscar_mayoristas con guardar_resultados_db)
-    resumen = {
-        "query": texto,
-        "total": len(items),
-        "por_tienda": contar_por_tienda(items),
-        "faltantes": construir_debug(items, MAYORISTAS_ESPERADOS, dbg).get("faltantes", []),
-    }
-    return resumen
 
-# Aliases de compatibilidad (si tu app.py esperaba estos nombres)
-tarea_actualizar_mayoristas = actualizar_mayoristas_y_guardar
-guardar_en_bd = guardar_resultados_db
+
+
+# --- El resto de tus rutas se mantienen igual ---
+@buscar_bp.route("/buscar")
+def mostrar_comparador():
+    return render_template("buscador_rediseñado.html")
+
+@buscar_bp.route("/api/tiendas", methods=["GET"])
+def obtener_tiendas():
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            cur.execute("SELECT DISTINCT sitio FROM productos ORDER BY sitio")
+            tiendas = [row[0] for row in cur.fetchall()]
+        return jsonify(tiendas)
+    except Exception as e:
+        print(f"Error al obtener tiendas: {e}")
+        return jsonify([]), 500
+    finally:
+        if conn: conn.close()
+
+# Al inicio de routes/buscar.py (tras otras importaciones) añade:
+import psycopg2.extras
+
+@buscar_bp.route('/api/mayoristas/estado', methods=['GET'])
+def estado_mayoristas():
+    """
+    Devuelve el último estado de cada mayorista con la hora ajustada a UTC-3 (Buenos Aires).
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            cur.execute("""
+                SELECT DISTINCT ON (sitio) sitio, ultima_actualizacion, cantidad_productos, cantidad_errores
+                FROM auditoria_mayoristas
+                ORDER BY sitio, ultima_actualizacion DESC
+            """)
+            resultados = []
+            for row in cur.fetchall():
+                # Ajustamos la hora (UTC -3) suponiendo que la base guarda UTC
+                ts = row['ultima_actualizacion']
+                if ts:
+                    ts_local = ts - timedelta(hours=3)
+                    row = dict(row)
+                    row['ultima_actualizacion'] = ts_local.isoformat()
+                resultados.append(dict(row))
+        return jsonify(resultados)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
+
+@buscar_bp.route('/api/mayoristas/<sitio>/actualizar', methods=['POST'])
+def actualizar_mayorista(sitio):
+    """
+    Fuerza la actualización de un solo mayorista.
+    Ejecuta el scraper correspondiente y reemplaza sus registros en la base de datos.
+    """
+    nombre = sitio.strip()
+    try:
+        # Importamos aquí para evitar ciclos y acelerar arranque
+        from services.newbytes import obtener_lista_completa_newbytes
+        from services.buscar_invid import obtener_lista_completa_invid
+        from services.air_intra import obtener_lista_completa_air
+        from services.polytech import obtener_lista_completa_polytech
+
+
+        mapping = {
+            'Invid': obtener_lista_completa_invid,
+            'Newbytes': obtener_lista_completa_newbytes,
+            'AIR': obtener_lista_completa_air,
+            'POLYTECH': obtener_lista_completa_polytech,
+          
+        }
+        if nombre not in mapping:
+            return jsonify({"error": "Sitio no reconocido"}), 400
+
+        lista = mapping[nombre]() or []
+        # Aseguramos campos opcionales
+        for it in lista:
+            it.setdefault('imagen', '')
+            it.setdefault('marca', 'Sin Marca')
+            it.setdefault('precio_anterior', 0)
+            it.setdefault('porcentaje_descuento', 0)
+
+        reemplazar_resultados_de_sitio(nombre, lista)
+        return jsonify({
+            "mensaje": f"{nombre} actualizado con éxito",
+            "cantidad_productos": len(lista)
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@buscar_bp.route('/api/mayoristas/<sitio>/productos', methods=['GET'])
+def productos_mayorista(sitio):
+    """
+    Devuelve una lista de productos de un mayorista específico para visualización en el modal.
+    Se limita a los 500 más recientes (ordenados por fecha de actualización).
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            cur.execute("""
+                SELECT producto, precio, actualizado
+                FROM productos
+                WHERE sitio = %s
+                ORDER BY actualizado DESC
+                LIMIT 500
+            """, (sitio,))
+            productos = []
+            for row in cur.fetchall():
+                # Ajuste horario para la columna actualizado
+                ts = row['actualizado']
+                if ts:
+                    ts_local = ts - timedelta(hours=3)
+                    actualizado = ts_local.isoformat()
+                else:
+                    actualizado = None
+                productos.append({
+                    "producto": row['producto'],
+                    "precio": row['precio'],
+                    "actualizado": actualizado
+                })
+        return jsonify(productos)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
