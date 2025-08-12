@@ -9,8 +9,7 @@ from typing import List, Dict
 
 # Lista blanca según tu proyecto (podés ajustar aquí)
 TIENDAS_PERMITIDAS = {
-    "Acuario Insumos", "Compra Gamer", "Compugarden", "Full H4rd",
-    "Gaming City", "Integrados Argentinos", "Maximus",
+    "Acuario Insumos", "Compra Gamer", "Compugarden", "Full H4rd", "Integrados Argentinos", "Maximus",
     "Megasoft", "Mexx", "Scp Hardstore", "TheGamerShop"
 }
 

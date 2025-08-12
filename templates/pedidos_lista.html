@@ -13,60 +13,101 @@
     <div class="d-flex">
         <div id="sidebar">
             <div class="sidebar-title my-3 text-center">
-                <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo TheGamerShop" class="img-fluid" style="max-height: 80px;">
+              <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo TheGamerShop" class="img-fluid" style="max-height: 80px;">
             </div>
-
+          
             {% set ruta_actual = request.path %}
             {% set es_presupuestos = ruta_actual.startswith('/presupuestos') or ruta_actual.startswith('/pcs_predeterminadas') %}
             {% set es_stock = ruta_actual.startswith('/stock') or ruta_actual.startswith('/componentes-presupuesto') %}
             {% set es_pedidos = ruta_actual.startswith('/pedidos') %}
-
+          
             <ul class="nav flex-column">
-                <li class="nav-item mb-1">
-                    <a class="nav-link {% if ruta_actual == '/buscar' %}active{% endif %}" href="/buscar">
-                        <i class="fas fa-search fa-fw me-2"></i>Comparador
-                    </a>
-                </li>
-                <li class="nav-item mb-1">
-                    <a class="nav-link {% if not es_presupuestos %}collapsed{% endif %}" href="#" data-bs-toggle="collapse" data-bs-target="#presupuestos-menu" aria-expanded="{{ 'true' if es_presupuestos else 'false' }}">
-                        <i class="fas fa-file-invoice-dollar fa-fw me-2"></i>Presupuestos
-                    </a>
-                    <div class="collapse {% if es_presupuestos %}show{% endif %}" id="presupuestos-menu">
-                        <ul class="nav flex-column ms-3">
-                            <li class="nav-item"><a class="nav-link {% if ruta_actual == '/presupuestos' %}active{% endif %}" href="/presupuestos"><i class="fas fa-plus fa-fw me-2"></i>Crear presupuesto</a></li>
-                            <li class="nav-item"><a class="nav-link {% if ruta_actual == '/pcs_predeterminadas' %}active{% endif %}" href="/pcs_predeterminadas"><i class="fas fa-desktop fa-fw me-2"></i>PCs Predeterminadas</a></li>
-                        </ul>
-                    </div>
-                </li>
-                <li class="nav-item mb-1">
-                    <a class="nav-link {% if not es_stock %}collapsed{% endif %}" href="#" data-bs-toggle="collapse" data-bs-target="#stock-menu" aria-expanded="{{ 'true' if es_stock else 'false' }}">
-                        <i class="fas fa-boxes fa-fw me-2"></i>Stock y componentes
-                    </a>
-                    <div class="collapse {% if es_stock %}show{% endif %}" id="stock-menu">
-                        <ul class="nav flex-column ms-3">
-                            <li class="nav-item"><a class="nav-link {% if ruta_actual == '/stock' %}active{% endif %}" href="/stock"><i class="fas fa-list-alt fa-fw me-2"></i>Lista de stock</a></li>
-                            <li class="nav-item"><a class="nav-link {% if ruta_actual == '/componentes-presupuesto' %}active{% endif %}" href="/componentes-presupuesto"><i class="fas fa-cogs fa-fw me-2"></i>Componentes</a></li>
-                        </ul>
-                    </div>
-                </li>
-                <li class="nav-item mb-1">
-                    <a class="nav-link {% if not es_pedidos %}collapsed{% endif %}" href="#" data-bs-toggle="collapse" data-bs-target="#pedidos-menu" aria-expanded="{{ 'true' if es_pedidos else 'false' }}">
-                        <i class="fas fa-truck fa-fw me-2"></i>Pedidos
-                    </a>
-                    <div class="collapse {% if es_pedidos %}show{% endif %}" id="pedidos-menu">
-                        <ul class="nav flex-column ms-3">
-                            <li class="nav-item"><a class="nav-link {% if ruta_actual == '/pedidos' %}active{% endif %}" href="/pedidos"><i class="fas fa-plus-circle fa-fw me-2"></i>Nuevo pedido</a></li>
-                            <li class="nav-item"><a class="nav-link {% if ruta_actual == '/pedidos/lista' %}active{% endif %}" href="/pedidos/lista"><i class="fas fa-list fa-fw me-2"></i>Lista de pedidos</a></li>
-                        </ul>
-                    </div>
-                </li>
+              <!-- Comparador -->
+              <li class="nav-item mb-1">
+                <a class="nav-link {% if ruta_actual == '/buscar' %}active{% endif %}" href="/buscar">
+                  <i class="fas fa-search fa-fw me-2"></i>Comparador
+                </a>
+              </li>
+          
+              <!-- Simulador de costos (NUEVO) -->
+              <li class="nav-item mb-1">
+                <a class="nav-link {% if ruta_actual.startswith('/simulador') %}active{% endif %}" href="/simulador">
+                  <i class="fas fa-calculator fa-fw me-2"></i>Cuotas
+                </a>
+              </li>
+          
+              <!-- Presupuestos -->
+              <li class="nav-item mb-1">
+                <a class="nav-link {% if not es_presupuestos %}collapsed{% endif %}" href="#" data-bs-toggle="collapse" data-bs-target="#presupuestos-menu" aria-expanded="{{ 'true' if es_presupuestos else 'false' }}">
+                  <i class="fas fa-file-invoice-dollar fa-fw me-2"></i>Presupuestos
+                </a>
+                <div class="collapse {% if es_presupuestos %}show{% endif %}" id="presupuestos-menu">
+                  <ul class="nav flex-column ms-3">
+                    <li class="nav-item">
+                      <a class="nav-link {% if ruta_actual == '/presupuestos' %}active{% endif %}" href="/presupuestos">
+                        <i class="fas fa-plus fa-fw me-2"></i>Crear presupuesto
+                      </a>
+                    </li>
+                    <li class="nav-item">
+                      <a class="nav-link {% if ruta_actual == '/pcs_predeterminadas' %}active{% endif %}" href="/pcs_predeterminadas">
+                        <i class="fas fa-desktop fa-fw me-2"></i>PCs Predeterminadas
+                      </a>
+                    </li>
+                  </ul>
+                </div>
+              </li>
+          
+              <!-- Stock y componentes -->
+              <li class="nav-item mb-1">
+                <a class="nav-link {% if not es_stock %}collapsed{% endif %}" href="#" data-bs-toggle="collapse" data-bs-target="#stock-menu" aria-expanded="{{ 'true' if es_stock else 'false' }}">
+                  <i class="fas fa-boxes fa-fw me-2"></i>Stock y componentes
+                </a>
+                <div class="collapse {% if es_stock %}show{% endif %}" id="stock-menu">
+                  <ul class="nav flex-column ms-3">
+                    <li class="nav-item">
+                      <a class="nav-link {% if ruta_actual == '/stock' %}active{% endif %}" href="/stock">
+                        <i class="fas fa-list-alt fa-fw me-2"></i>Lista de stock
+                      </a>
+                    </li>
+                    <li class="nav-item">
+                      <a class="nav-link {% if ruta_actual == '/componentes-presupuesto' %}active{% endif %}" href="/componentes-presupuesto">
+                        <i class="fas fa-cogs fa-fw me-2"></i>Componentes
+                      </a>
+                    </li>
+                  </ul>
+                </div>
+              </li>
+          
+              <!-- Pedidos -->
+              <li class="nav-item mb-1">
+                <a class="nav-link {% if not es_pedidos %}collapsed{% endif %}" href="#" data-bs-toggle="collapse" data-bs-target="#pedidos-menu" aria-expanded="{{ 'true' if es_pedidos else 'false' }}">
+                  <i class="fas fa-truck fa-fw me-2"></i>Pedidos
+                </a>
+                <div class="collapse {% if es_pedidos %}show{% endif %}" id="pedidos-menu">
+                  <ul class="nav flex-column ms-3">
+                    <li class="nav-item">
+                      <a class="nav-link {% if ruta_actual == '/pedidos' %}active{% endif %}" href="/pedidos">
+                        <i class="fas fa-plus-circle fa-fw me-2"></i>Nuevo pedido
+                      </a>
+                    </li>
+                    <li class="nav-item">
+                      <a class="nav-link {% if ruta_actual == '/pedidos/lista' %}active{% endif %}" href="/pedidos/lista">
+                        <i class="fas fa-list fa-fw me-2"></i>Lista de pedidos
+                      </a>
+                    </li>
+                  </ul>
+                </div>
+              </li>
             </ul>
-
+          
             <div class="mt-auto p-3 text-white small">
-                <i class="fas fa-dollar-sign me-1"></i>Oficial: (Dólar Oficial)<br>
-                <i class="fas fa-hand-holding-usd me-1"></i>Blue: (Dólar Blue)
+              <i class="fas fa-dollar-sign me-1"></i>Oficial: (Dólar Oficial)<br>
+              <i class="fas fa-hand-holding-usd me-1"></i>Blue: (Dólar Blue)
             </div>
+          </div>
+          
         </div>
+    </div>
 
         <div id="main-content">
             <h1><i class="fas fa-list me-2"></i>Lista de Pedidos</h1>

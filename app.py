@@ -15,6 +15,7 @@ from routes.componentes_routes import componentes_bp
 from routes.pc_predeterminadas_routes import pc_pred_bp
 # --- CAMBIO 1: Importamos el nuevo blueprint de configuración ---
 from routes.configuracion_routes import configuracion_bp
+from routes.simulador import simulador_bp
 
 
 # --- CONFIGURACIÓN DEL PLANIFICADOR ---
@@ -56,6 +57,7 @@ app.register_blueprint(componentes_bp)
 app.register_blueprint(pc_pred_bp)
 # --- CAMBIO 2: Registramos el nuevo blueprint de configuración ---
 app.register_blueprint(configuracion_bp)
+app.register_blueprint(simulador_bp)
 
 
 def tarea_actualizar_mayoristas():
