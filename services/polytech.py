@@ -1,230 +1,114 @@
-# -*- coding: utf-8 -*-
-# services/polytech_scraper.py
-# Scraper POLYTECH sin Playwright, con resolución de BASE_URL vía ENV o config interna.
-
-from __future__ import annotations
-import re
-import json
+import os
+import pandas as pd
+import tempfile
+from playwright.sync_api import sync_playwright
 import time
-import logging
-from typing import List, Dict, Optional
-from datetime import datetime
-from urllib.parse import urljoin
 
-import requests
-from bs4 import BeautifulSoup
+def obtener_lista_completa_polytech():
+    """
+    Obtiene la lista de precios de Polytech, con un sistema de reintentos
+    para manejar la lentitud en la descarga del archivo.
+    """
+    nombre_tienda = "POLYTECH"
+    print(f"-> Obteniendo lista completa de {nombre_tienda}...")
+    
+    with sync_playwright() as p:
+        # Dejamos el navegador visible para asegurar compatibilidad
+        browser = p.chromium.launch(headless=True)
+        context = browser.new_context(accept_downloads=True)
+        page = context.new_page()
 
-from services.config_mayoristas import obtener_base_url
-
-try:
-    from zoneinfo import ZoneInfo
-    TZ_BA = ZoneInfo("America/Argentina/Buenos_Aires")
-except Exception:
-    TZ_BA = None
-
-HEADERS = {
-    "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                   "AppleWebKit/537.36 (KHTML, like Gecko) "
-                   "Chrome/125.0 Safari/537.36"),
-    "Accept-Language": "es-AR,es;q=0.9,en;q=0.8",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-}
-
-PRICE_RE = re.compile(r"([\$S]?\s*\d{1,3}(?:\.\d{3})*(?:,\d{2})?)")
-
-def _ts_ba_iso() -> str:
-    try:
-        now = datetime.now(tz=TZ_BA) if TZ_BA else datetime.now()
-        return now.isoformat()
-    except Exception:
-        return datetime.utcnow().isoformat() + "Z"
-
-def _to_float_ars(txt: str) -> float:
-    if not txt:
-        return 0.0
-    s = str(txt).strip()
-    m = PRICE_RE.search(s)
-    if m:
-        s = m.group(1)
-    s = s.replace(".", "").replace(",", ".")
-    try:
-        return float(s)
-    except Exception:
-        return 0.0
-
-def _abs(base: str, href: Optional[str]) -> str:
-    if not href:
-        return "#"
-    return href if href.startswith("http") else urljoin(base.rstrip("/") + "/", href.lstrip("/"))
-
-def _get(url: str, timeout: int = 30) -> Optional[requests.Response]:
-    try:
-        r = requests.get(url, headers=HEADERS, timeout=timeout)
-        if r.status_code == 200 and r.text:
-            return r
-    except requests.RequestException as e:
-        logging.warning(f"[POLYTECH] GET falló {url}: {e}")
-    return None
-
-def _parse_jsonld_product(soup: BeautifulSoup) -> Dict[str, str]:
-    for tag in soup.find_all("script", type="application/ld+json"):
         try:
-            data = json.loads(tag.string or "{}")
-            if isinstance(data, list):
-                for entry in data:
-                    res = _from_ld_entry(entry)
-                    if res:
-                        return res
-            else:
-                res = _from_ld_entry(data)
-                if res:
-                    return res
-        except Exception:
-            continue
-    return {}
+            # 1. Login
+            print("-> Haciendo login en Polytech...")
+            page.goto("https://www.gestionresellers.com.ar/login", timeout=60000)
+            page.fill("#user_name", "AAP0525")
+            page.fill("#password", "HGGJSMQ3")
+            page.click("input[type='submit']")
+            page.wait_for_load_state("networkidle", timeout=60000)
 
-def _from_ld_entry(entry: dict) -> Optional[Dict[str, str]]:
-    t = entry.get("@type") or entry.get("@type".lower())
-    if isinstance(t, list):
-        t = [str(x).lower() for x in t]
-        is_prod = any("product" in x for x in t)
-    else:
-        is_prod = str(t).lower() == "product"
-    if not is_prod:
-        return None
-    name = entry.get("name") or ""
-    image = entry.get("image") or ""
-    price = ""
-    currency = "ARS"
-    offers = entry.get("offers")
-    if isinstance(offers, dict):
-        price = offers.get("price") or ""
-        currency = offers.get("priceCurrency") or "ARS"
-    elif isinstance(offers, list) and offers:
-        o0 = offers[0] or {}
-        price = o0.get("price") or ""
-        currency = o0.get("priceCurrency") or "ARS"
-    return {"name": name, "image": image, "price": str(price), "currency": currency}
+            # 2. Obtenemos el dólar de la página
+            print("-> Obteniendo valor del dólar desde la página...")
+            dolar_element = page.wait_for_selector("#cotizacion_moneda", timeout=10000)
+            dolar_text = dolar_element.text_content()
+            valor_dolar_str = dolar_text.split("$")[1].strip().replace(",", "")
+            valor_dolar = float(valor_dolar_str)
+            print(f"-> Valor del Dólar obtenido y guardado: {valor_dolar}")
+            
+            # 3. Descargar Excel con lógica de reintentos
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    print(f"-> Intento de descarga #{attempt + 1}/{max_retries}...")
+                    # Aumentamos el timeout de la descarga a 3 minutos (180000 ms)
+                    with page.expect_download(timeout=180000) as download_info:
+                        # Hacemos clic en el enlace para descargar
+                        page.click("a[href='/extranet/exportar/excel?lbv=']")
+                    
+                    download = download_info.value
+                    print("-> Descarga completada con éxito.")
+                    
+                    # Si la descarga fue exitosa, salimos del bucle de reintentos
+                    break
+                
+                except Exception as e:
+                    print(f"-> El intento #{attempt + 1} falló: {e}")
+                    if attempt < max_retries - 1:
+                        print("-> La página parece trabada. Refrescando y reintentando en 10 segundos...")
+                        page.reload() # Refrescamos la página
+                        page.wait_for_load_state("networkidle", timeout=60000) # Esperamos a que recargue
+                        time.sleep(10)
+                    else:
+                        print("-> Se alcanzaron los máximos reintentos. Abortando.")
+                        raise # Lanzamos el último error para que falle el script
 
-def _parse_price_fallback(soup: BeautifulSoup) -> str:
-    candidates = [".price .amount", ".price .money", "span.money", "span.price",
-                  ".product-price", "[data-price]", "[class*='price']"]
-    for sel in candidates:
-        el = soup.select_one(sel)
-        if el and el.get_text(strip=True):
-            return el.get_text(strip=True)
-    txt = soup.get_text(" ", strip=True)
-    m = PRICE_RE.search(txt)
-    return m.group(1) if m else ""
+            # 4. Procesamos el archivo descargado
+            with tempfile.TemporaryDirectory() as tmpdir:
+                filepath = os.path.join(tmpdir, download.suggested_filename)
+                download.save_as(filepath)
+                browser.close()
 
-def _parse_name_fallback(soup: BeautifulSoup) -> str:
-    for sel in ["h1.product-title", "h1", "h2.product-title", "h2", "title"]:
-        el = soup.select_one(sel)
-        if el and el.get_text(strip=True):
-            return el.get_text(strip=True)
-    return ""
+                print("-> Procesando el archivo descargado...")
+                df = pd.read_csv(filepath, sep='\t', encoding='latin1').fillna("")
 
-def _parse_image_fallback(soup: BeautifulSoup) -> str:
-    og = soup.select_one("meta[property='og:image']")
-    if og and og.get("content"):
-        return og.get("content")
-    img = soup.select_one("img[src*='product'], img[src*='large'], img[src]")
-    if img and img.get("src"):
-        return img.get("src")
-    return ""
+                resultados = []
+                for _, row in df.iterrows():
+                    try:
+                        descripcion = str(row.get("Descripción", "")).strip()
+                        precio_usd_str = str(row.get("Precio c/IVA (DOLAR (U$S))", "0.0")).replace(",", ".")
+                        if not descripcion or not precio_usd_str or float(precio_usd_str) == 0:
+                            continue
+                        
+                        precio_usd = float(precio_usd_str)
+                        precio_final = round(precio_usd * valor_dolar, 2)
+                        
+                        resultados.append({
+                            "busqueda": "LISTA_COMPLETA",
+                            "sitio": nombre_tienda,
+                            "producto": descripcion,
+                            "precio": precio_final,
+                            "link": "https://www.gestionresellers.com.ar"
+                        })
+                    except (ValueError, TypeError, AttributeError):
+                        continue
 
-def _discover_product_urls(base: str) -> List[str]:
-    urls: List[str] = []
+            print(f"-> Lista de {nombre_tienda} procesada. {len(resultados)} productos encontrados.")
+            return resultados
 
-    # 1) Sitemaps
-    for path in ["/sitemap.xml", "/sitemap_index.xml", "/sitemap-products.xml", "/sitemap_products_1.xml"]:
-        r = _get(urljoin(base, path))
-        if not r:
-            continue
-        soup = BeautifulSoup(r.text, "xml")
-        for loc in soup.find_all("loc"):
-            u = (loc.get_text() or "").strip()
-            if not u:
-                continue
-            if any(k in u.lower() for k in ["product", "producto", "item", "catalog"]):
-                urls.append(u)
-        if urls:
-            return list(dict.fromkeys(urls))
+        except Exception as e:
+            print(f"-> ERROR GRAVE en el proceso de {nombre_tienda}: {e}")
+            if 'browser' in locals() and browser.is_connected():
+                browser.close()
+            return []
 
-    # 2) Fallback: listados comunes
-    listados = ["/collections/all", "/productos", "/catalogsearch/result/?q=a", "/search?q=a"]
-    seen = set()
-    for path in listados:
-        r = _get(urljoin(base, path))
-        if not r:
-            continue
-        soup = BeautifulSoup(r.text, "lxml")
-        for a in soup.select("a[href]"):
-            href = a.get("href")
-            if not href:
-                continue
-            u = _abs(base, href)
-            if u in seen:
-                continue
-            if any(k in u.lower() for k in ["product", "producto", "item", "catalog"]):
-                urls.append(u)
-                seen.add(u)
-        time.sleep(0.15)
-    return list(dict.fromkeys(urls))
+# Bloque de prueba
+if __name__ == '__main__':
+    def probar():
+        print("Probando la obtención de la lista completa de Polytech...")
+        lista_productos = obtener_lista_completa_polytech()
+        if lista_productos:
+            print(f"Se obtuvieron {len(lista_productos)} productos.")
+        else:
+            print("No se pudieron obtener productos.")
 
-def _parse_product_page(base: str, url: str) -> Optional[Dict]:
-    r = _get(url)
-    if not r:
-        return None
-    soup = BeautifulSoup(r.text, "lxml")
-
-    ld = _parse_jsonld_product(soup)
-    name = ld.get("name") or _parse_name_fallback(soup)
-    image = ld.get("image") or _parse_image_fallback(soup)
-    price_raw = ld.get("price") or _parse_price_fallback(soup)
-    currency = ld.get("currency") or "ARS"
-
-    price = _to_float_ars(str(price_raw))
-    if not name or price <= 0:
-        return None
-
-    return {
-        "busqueda": "",
-        "sitio": "POLYTECH",
-        "sku": None,
-        "nombre": name,
-        "precio_numeric": price,
-        "precio_raw": str(price_raw),
-        "moneda": currency or "ARS",
-        "url": url,
-        "imagen": image,
-        "actualizado_en": _ts_ba_iso(),
-        "es_tgs": False,
-    }
-
-def obtener_lista_completa_polytech() -> List[Dict]:
-    base = obtener_base_url("POLYTECH")
-    if not base:
-        logging.error("POLYTECH_BASE_URL no está definida (ni en ENV ni en config_mayoristas).")
-        return []
-
-    logging.info("-> Obteniendo lista completa de POLYTECH (HTTP sin Playwright)...")
-    urls = _discover_product_urls(base)
-    logging.info(f"-> POLYTECH: descubiertas {len(urls)} URLs candidatas de producto.")
-    out: List[Dict] = []
-    for i, url in enumerate(urls, start=1):
-        data = _parse_product_page(base, url)
-        if data:
-            out.append(data)
-        if i % 50 == 0:
-            logging.info(f"   Progreso POLYTECH: {i}/{len(urls)}")
-        time.sleep(0.1)
-    logging.info(f"-> POLYTECH finalizado. Productos válidos: {len(out)}")
-    return out
-
-def buscar_en_polytech(termino: str) -> List[Dict]:
-    termino = (termino or "").strip().lower()
-    if not termino:
-        return []
-    full = obtener_lista_completa_polytech()
-    return [p for p in full if termino in (p.get("nombre", "").lower())]
+    probar()

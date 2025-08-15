@@ -1,178 +1,127 @@
+# -*- coding: utf-8 -*-
 # services/thegamershop_scraper.py
-# Scraper robusto por HTTP + BeautifulSoup para resultados de búsqueda en TheGamerShop.
-# Evita Playwright/Selenium. Intenta múltiples endpoints/selectores comunes.
 
-from __future__ import annotations
 import re
-import logging
-from typing import List, Dict, Optional
-from datetime import datetime
-from zoneinfo import ZoneInfo
+from typing import List, Dict
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from webdriver_manager.chrome import ChromeDriverManager
 
-import requests
-from bs4 import BeautifulSoup
-
-TZ_BA = ZoneInfo("America/Argentina/Buenos_Aires")
-
-BASE = "https://www.thegamershop.com.ar"
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                  "(KHTML, like Gecko) Chrome/125.0 Safari/537.36",
-    "Accept-Language": "es-AR,es;q=0.9,en;q=0.8",
-}
-
-PRICE_RE = re.compile(r"[\$S\$]?[\s]*([\d\.]+(?:,\d{2})?)")  # capta 12.345,67 | 12345
-
-def _fmt_iso_now_ba() -> str:
-    return datetime.now(tz=TZ_BA).isoformat()
-
-def _to_float_ars(s: str) -> float:
-    """
-    Normaliza precios en ARS con separador de miles punto y decimal coma.
-    """
+def _parse_price(texto: str) -> float:
+    """Convierte '$ 123.456,78' a float 123456.78 de forma tolerante."""
+    s = re.sub(r"[^\d,\.]+", "", texto or "")
     if not s:
         return 0.0
-    # extrae 12.345,67
-    m = PRICE_RE.search(s)
-    txt = m.group(1) if m else s
-    # pasar "12.345,67" -> "12345.67"
-    txt = txt.replace(".", "").replace(",", ".")
-    try:
-        return float(txt)
-    except Exception:
-        return 0.0
-
-def _abs_url(href: Optional[str]) -> str:
-    if not href:
-        return "#"
-    if href.startswith("http"):
-        return href
-    return BASE.rstrip("/") + "/" + href.lstrip("/")
-
-def _parse_candidates(soup: BeautifulSoup) -> List[Dict]:
-    """
-    Intenta múltiples layouts comunes:
-      - Magento: div.product-item, a.product-item-link, span.price, img
-      - TiendaNube/Shopify-like: a.js-product-card / .grid-product__content
-      - Genérico: cualquier 'article' o 'div' con precio y título.
-    """
-    items = []
-
-    # 1) Magento-like
-    for card in soup.select("li.product-item, div.product-item, div.item.product-item"):
-        try:
-            a = card.select_one("a.product-item-link, a.product.photo.product-item-photo, a")
-            name = (a.get_text(strip=True) if a else "") or card.get_text(" ", strip=True)
-            url = _abs_url(a.get("href")) if a and a.has_attr("href") else "#"
-            # precios
-            price_el = card.select_one("span.price, span.price-final_price, .price")
-            price_txt = price_el.get_text(strip=True) if price_el else ""
-            price = _to_float_ars(price_txt)
-            # imagen
-            img = card.select_one("img")
-            img_url = img.get("data-src") or img.get("src") if img else ""
-            items.append((name, url, img_url, price))
-        except Exception:
-            continue
-
-    # 2) TiendaNube / Shopify-like
-    if not items:
-        for card in soup.select("a.js-product-card, .grid-product__content, .product-card"):
-            try:
-                # ancla principal
-                a = card if card.name == "a" else card.select_one("a")
-                name = (a.get_text(strip=True) if a else "") or card.get_text(" ", strip=True)
-                url = _abs_url(a.get("href")) if a and a.has_attr("href") else "#"
-                # precio
-                price_el = card.select_one(".price, .money, [class*='price']")
-                price_txt = price_el.get_text(strip=True) if price_el else ""
-                price = _to_float_ars(price_txt)
-                # imagen
-                img = card.select_one("img")
-                img_url = (img.get("srcset") or img.get("data-src") or img.get("src") or "").split(" ")[0]
-                items.append((name, url, img_url, price))
-            except Exception:
-                continue
-
-    # 3) Genérico (fallback)
-    if not items:
-        for card in soup.select("article, div[class*='product'], li"):
-            try:
-                txt = card.get_text(" ", strip=True)
-                if not txt: 
-                    continue
-                # nombre: heurístico — primer heading o enlace
-                h = card.select_one("h3, h2, h4, a")
-                name = h.get_text(strip=True) if h else txt[:120]
-                a = card.select_one("a")
-                url = _abs_url(a.get("href")) if a and a.has_attr("href") else "#"
-                # precio: primer número con formato moneda
-                price = 0.0
-                price_el = card.find(string=PRICE_RE) or txt
-                price = _to_float_ars(str(price_el))
-                # imagen
-                img = card.select_one("img")
-                img_url = img.get("src") if img else ""
-                # umbral: descartar tarjetas sin precio
-                if price > 0 and name and len(name) > 2:
-                    items.append((name, url, img_url, price))
-            except Exception:
-                continue
-
-    results = []
-    for (name, url, img_url, price) in items:
-        results.append({
-            "busqueda": "",  # lo setea el caller si necesita
-            "sitio": "TheGamerShop",
-            "nombre": name,
-            "precio_numeric": float(price or 0),
-            "precio_raw": str(price),
-            "moneda": "ARS",
-            "url": url,
-            "imagen": img_url or "",
-            "actualizado_en": _fmt_iso_now_ba(),
-            "es_tgs": True
-        })
-    return results
+    # Quitamos separador de miles '.' y usamos ',' como decimal
+    return float(s.replace(".", "").replace(",", "."))
 
 def buscar_en_tgs(producto: str) -> List[Dict]:
     """
-    Intenta varios endpoints/estrategias:
-      1) /search?q=term
-      2) /buscar?q=term
-      3) /catalogsearch/result/?q=term
-    Si alguno responde con listado HTML, parsea con selectores robustos.
+    Scraper de TheGamerShop con Selenium y selectores flexibles.
+    - Intenta primero contenedores con data-attributes.
+    - Si no hay, recurre a contenedores 'product' genéricos.
+    - Extrae nombre, precio, link e imagen con distintos fallbacks.
     """
-    term = (producto or "").strip()
-    if not term:
-        return []
+    print(f"-> TheGamerShop: buscando '{producto}'...")
+    resultados: List[Dict] = []
+    driver = None
+    try:
+        opts = Options()
+        opts.add_argument("--headless")
+        opts.add_argument("--disable-gpu")
+        opts.add_argument("--no-sandbox")
 
-    logging.info(f"-> Buscando en TGS (HTTP) para '{term}' ...")
-    endpoints = [
-        f"{BASE}/search?q={requests.utils.quote(term)}",
-        f"{BASE}/buscar?q={requests.utils.quote(term)}",
-        f"{BASE}/catalogsearch/result/?q={requests.utils.quote(term)}",
-    ]
+        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=opts)
 
-    for url in endpoints:
+        query = re.sub(r"\s+", "+", producto.strip())
+        url = f"https://www.thegamershop.com.ar/buscar/?q={query}"
+        driver.get(url)
+
+        wait = WebDriverWait(driver, 25)
+
+        # Espera flexible: alguno de estos selectores debe aparecer
         try:
-            r = requests.get(url, headers=HEADERS, timeout=30)
-            if r.status_code != 200 or not r.text:
-                continue
-            soup = BeautifulSoup(r.text, "lxml")
-            parsed = _parse_candidates(soup)
-            if parsed:
-                # poné la búsqueda en cada ítem para track
-                for it in parsed:
-                    it["busqueda"] = term.lower()
-                logging.info(f"-> TGS OK con {url}. {len(parsed)} productos.")
-                return parsed
-        except requests.exceptions.RequestException as e:
-            logging.warning(f"-> TGS endpoint falló {url}: {e}")
-            continue
-        except Exception as e:
-            logging.warning(f"-> TGS parse error en {url}: {e}")
-            continue
+            wait.until(
+                EC.presence_of_element_located(
+                    (By.CSS_SELECTOR, "div[data-product-name], div[class*='product']")
+                )
+            )
+        except Exception:
+            print("   - No aparecieron tarjetas de producto.")
+            return []
 
-    logging.info("-> TGS sin resultados (HTTP).")
-    return []
+        cards = driver.find_elements(By.CSS_SELECTOR, "div[data-product-name]")  # preferido
+        if not cards:
+            cards = driver.find_elements(By.CSS_SELECTOR, "div[class*='product']")  # fallback
+
+        for card in cards:
+            try:
+                # Nombre
+                nombre = card.get_attribute("data-product-name")
+                if not nombre:
+                    t = card.find_elements(By.CSS_SELECTOR, "h2, h3, a, .title, .product-title")
+                    nombre = (t[0].text.strip() if t else card.text.split("\n")[0].strip())
+
+                # Precio
+                precio_raw = card.get_attribute("data-product-price")
+                if not precio_raw:
+                    m = re.search(r"\$[\s]*[\d\.\,]+", card.text)
+                    precio_raw = m.group(0) if m else "$0"
+                precio = _parse_price(precio_raw)
+
+                # Link
+                link = card.get_attribute("data-product-url") or ""
+                if not link:
+                    for a in card.find_elements(By.TAG_NAME, "a"):
+                        href = a.get_attribute("href")
+                        if href and "thegamershop.com.ar" in href:
+                            link = href
+                            break
+                if not link:
+                    link = "#"
+
+                # Imagen
+                imagen = ""
+                imgs = card.find_elements(By.TAG_NAME, "img")
+                if imgs:
+                    imagen = imgs[0].get_attribute("src") or ""
+
+                resultados.append({
+                    "busqueda": producto.lower(),
+                    "sitio": "The Gamer Shop",
+                    "producto": nombre,
+                    "precio": precio,
+                    "link": link,
+                    "imagen": imagen,
+                    "marca": "",
+                    "precio_anterior": 0,
+                    "porcentaje_descuento": 0
+                })
+            except Exception:
+                # Si una tarjeta falla, no abortamos toda la búsqueda
+                continue
+
+        print(f"-> TheGamerShop OK: {len(resultados)} productos.")
+        return resultados
+
+    except Exception as e:
+        print(f"[TGS] ERROR: {e}")
+        return []
+    finally:
+        if driver:
+            driver.quit()
+
+
+# ---- Bloque de prueba directa ----
+if __name__ == "__main__":
+    import sys
+    term = sys.argv[1] if len(sys.argv) > 1 else "5600g"
+    items = buscar_en_tgs(term)
+    print(f"TOTAL: {len(items)}")
+    if items:
+        from pprint import pprint
+        pprint(items[0])

@@ -200,52 +200,118 @@ def ejecutar_busqueda_en_segundo_plano(producto):
 
 @buscar_bp.route("/comparar", methods=["GET"])
 def comparar_productos():
+    """
+    Permite buscar un producto en tres modos:
+      - 'minorista': retorna los resultados de productos busqueda=producto; si no hay datos frescos, ejecuta scraping y devuelve estado 'actualizando'.
+      - 'mayorista': retorna solo mayoristas (Invid, NewBytes, AIR, POLYTECH y TheGamerShop) por coincidencia parcial.
+      - 'masiva': combina ambos conjuntos, y si no hay minoristas, ejecuta scraping y devuelve estado 'actualizando'.
+    """
     producto = request.args.get("producto", "").lower().strip()
-    tipo = request.args.get("tipo", "minorista")
+    tipo = request.args.get("tipo", "minorista").lower()
 
     if not producto:
         return jsonify({"error": "Falta el parámetro 'producto'"}), 400
+
+    # Evitamos lanzar múltiples scrapers para el mismo término (solo minorista/masiva)
+    if tipo in ["minorista", "masiva"] and producto in ACTUALIZACIONES_EN_CURSO:
+        return jsonify({
+            "estado": "actualizando",
+            "mensaje": "Ya hay una actualización en curso para este producto."
+        })
 
     conn = None
     try:
         conn = get_db_connection()
         with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
-            
+            intervalo_minorista = "NOW() - INTERVAL '11 hours'"
+
+            # -------- Búsqueda en mayoristas --------
             if tipo == "mayorista":
-                sitios = ('NewBytes', 'Invid', 'AIR', 'POLYTECH')
-                query = "SELECT * FROM productos WHERE sitio IN %s AND LOWER(producto) ILIKE %s ORDER BY precio ASC LIMIT 200"
-                cur.execute(query, (sitios, f"%{producto}%"))
-            
+                sitios = ('NewBytes', 'Invid', 'AIR', 'POLYTECH', )
+                cur.execute("""
+                    SELECT * FROM productos
+                    WHERE sitio IN %s AND LOWER(producto) ILIKE %s
+                    ORDER BY precio ASC
+                    LIMIT 200
+                """, (sitios, f"%{producto}%"))
+                resultados_actuales = [dict(row) for row in cur.fetchall()]
+
+            # -------- Búsqueda masiva --------
             elif tipo == "masiva":
-                # Busca en todos los sitios de la base de datos
-                query = "SELECT * FROM productos WHERE LOWER(producto) ILIKE %s ORDER BY precio ASC"
-                cur.execute(query, (f"%{producto}%",))
+                sitios_mayoristas = ('NewBytes', 'Invid', 'AIR', 'POLYTECH', )
+                cur.execute(f"""
+                    SELECT * FROM productos
+                    WHERE (busqueda = %s AND actualizado > {intervalo_minorista})
+                       OR (sitio IN %s AND LOWER(producto) ILIKE %s)
+                    ORDER BY precio ASC
+                """, (producto, sitios_mayoristas, f"%{producto}%"))
+                resultados_actuales = [dict(row) for row in cur.fetchall()]
 
-            else: # tipo "minorista" por defecto
-                sitios_minoristas = (
-                    "Acuario Insumos", "Compra Gamer", "Compugarden", "Full H4rd",
-                    "Gaming City", "Integrados Argentinos", "Maximus", "Megasoft",
-                    "Mexx", "Scp Hardstore"
-                )
-                query = "SELECT * FROM productos WHERE sitio IN %s AND LOWER(producto) ILIKE %s ORDER BY precio ASC"
-                cur.execute(query, (sitios_minoristas, f"%{producto}%"))
+                # Contamos si hay minoristas frescos
+                cur.execute(f"""
+                    SELECT COUNT(*) FROM productos
+                    WHERE busqueda = %s AND actualizado > {intervalo_minorista}
+                """, (producto,))
+                minorista_count = cur.fetchone()[0]
 
-            resultados_actuales = [dict(row) for row in cur.fetchall()]
-            
-            # Formateo de precios (común a todos los tipos de búsqueda)
+                if minorista_count == 0:
+                    ahora = datetime.datetime.utcnow()
+                    ultimo_intento = ULTIMOS_SIN_RESULTADO.get(producto)
+                    # solo intentamos si ha pasado más de 1 hora desde el último intento fallido
+                    if not ultimo_intento or (ahora - ultimo_intento).total_seconds() >= 3600:
+                        ULTIMOS_SIN_RESULTADO[producto] = ahora
+                        ACTUALIZACIONES_EN_CURSO.add(producto)
+                        ejecutar_busqueda_en_segundo_plano(producto)
+
+                    # Formateamos precios de mayoristas antes de responder
+                    for r in resultados_actuales:
+                        if r.get('precio') is not None:
+                            valor = float(r['precio'])
+                            r['precio'] = f"${valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+                    return jsonify({
+                        "estado": "actualizando",
+                        "mensaje": "Buscando minoristas por primera vez...",
+                        "resultados": resultados_actuales
+                    })
+
+            # -------- Búsqueda minorista --------
+            else:  # tipo == "minorista"
+                cur.execute(f"""
+                    SELECT * FROM productos
+                    WHERE busqueda = %s AND actualizado > {intervalo_minorista}
+                    ORDER BY precio ASC
+                """, (producto,))
+                resultados_actuales = [dict(row) for row in cur.fetchall()]
+
+                if not resultados_actuales:
+                    ahora = datetime.datetime.utcnow()
+                    ultimo_intento = ULTIMOS_SIN_RESULTADO.get(producto)
+                    # evitamos repetir la búsqueda si ya se intentó hace menos de 1 hora
+                    if ultimo_intento and (ahora - ultimo_intento).total_seconds() < 3600:
+                        return jsonify([])
+
+                    ULTIMOS_SIN_RESULTADO[producto] = ahora
+                    ACTUALIZACIONES_EN_CURSO.add(producto)
+                    ejecutar_busqueda_en_segundo_plano(producto)
+                    return jsonify({
+                        "estado": "actualizando",
+                        "mensaje": "Buscando este producto por primera vez..."
+                    })
+
+            # Formateo final de precios para cualquier tipo de búsqueda con datos listos
             for r in resultados_actuales:
-                if 'precio' in r and r['precio'] is not None:
+                if r.get('precio') is not None:
                     valor = float(r['precio'])
                     r['precio'] = f"${valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-            
+
             return jsonify(resultados_actuales)
-            
+
     except Exception as e:
         print(f"-> Error en /comparar: {e}")
-        return jsonify({"error": "Ocurrió un error en el servidor", "detalle": str(e)}), 500
+        return jsonify({"error": "Error interno en el servidor."}), 500
     finally:
-        if conn:
-            conn.close()
+        if conn: conn.close()
 
 
 

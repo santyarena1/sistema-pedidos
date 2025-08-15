@@ -1,108 +1,114 @@
+# -*- coding: utf-8 -*-
 # services/preciosgamer_scraper.py
-# Scraper estable vía API oficial de PreciosGamer (HTTP puro, sin navegador).
-# Comentarios en castellano y campos normalizados para integrarse sin tocar el resto.
 
-from __future__ import annotations
-import time
-import math
-import logging
-from typing import List, Dict
 import requests
-from datetime import datetime
-from zoneinfo import ZoneInfo
+import time
+import unicodedata
+import re
+from typing import List, Dict
 
-TZ_BA = ZoneInfo("America/Argentina/Buenos_Aires")
-
-API_URL = "https://api.preciosgamer.com/v1/items"
-PAGE_SIZE = 30
-DEFAULT_HEADERS = {
-    # User-Agent “realista” para evitar rate limit tonto
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                  "(KHTML, like Gecko) Chrome/125.0 Safari/537.36"
+# Lista blanca según tu proyecto (podés ajustar aquí)
+TIENDAS_PERMITIDAS = {
+    "Acuario Insumos", "Compra Gamer", "Compugarden", "Full H4rd", "Integrados Argentinos", "Maximus",
+    "Megasoft", "Mexx", "Scp Hardstore", "TheGamerShop"
 }
 
-def _fmt_iso_now_ba() -> str:
-    return datetime.now(tz=TZ_BA).isoformat()
+def _normalize(s: str) -> str:
+    """Normaliza eliminando acentos, espacios, signos y pasando a minúsculas."""
+    s = unicodedata.normalize('NFD', s or '').encode('ascii', 'ignore').decode('ascii')
+    return re.sub(r'[\s\W_]+', '', s).lower()
 
-def _safe_float(val, default=0.0) -> float:
-    try:
-        if val is None: return float(default)
-        return float(str(val).replace(",", "."))
-    except Exception:
-        return float(default)
-
-def buscar_en_preciosgamer(producto: str) -> List[Dict]:
+def buscar_en_preciosgamer(producto: str, order: str = "asc_price") -> List[Dict]:
     """
-    Busca en PreciosGamer usando la API paginada.
-    Devuelve lista de dicts con campos normalizados.
-    """
-    term = (producto or "").strip()
-    if not term:
-        return []
+    Scraper robusto para PreciosGamer.
+    - Usa endpoint oficial, con cabeceras de navegador + Referer/Origin.
+    - Lee la lista desde 'response' (NO 'results').
+    - Paginación por offset (30 en 30).
+    - Filtra por tiendas permitidas (normalización flexible).
+    - Tolerante por ítem: si un registro viene mal, no corta toda la página.
 
+    Retorna: lista de dicts con campos esperados por el backend/JS.
+    """
+    print(f"-> PreciosGamer: buscando '{producto}' (order={order})...")
     resultados: List[Dict] = []
     offset = 0
+    LIMIT = 30
 
-    logging.info(f"-> Buscando en PreciosGamer para '{term}' (API) ...")
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0",
+        "Accept": "application/json",
+        "Referer": "https://www.preciosgamer.com/",
+        "Origin": "https://www.preciosgamer.com",
+        "X-Requested-With": "XMLHttpRequest",
+    }
+
+    tiendas_norm = {_normalize(t) for t in TIENDAS_PERMITIDAS}
+
     while True:
-        params = {
-            "search": term,
-            "offset": offset,
-            "order": "asc_price",  # ordenar por precio asc para consistencia
-        }
+        url = (
+            "https://api.preciosgamer.com/v1/items"
+            f"?order={order}&search={requests.utils.quote(producto)}&offset={offset}"
+        )
         try:
-            resp = requests.get(API_URL, headers=DEFAULT_HEADERS, params=params, timeout=30)
-            resp.raise_for_status()
-            data = resp.json()
+            r = requests.get(url, headers=headers, timeout=20)
+            r.raise_for_status()
+            data = r.json()
 
-            items = []
-            if isinstance(data, dict) and data.get("response"):
-                items = data["response"]
-
-            # Si no hay items, cortamos
-            if not items:
+            # 🔑 PUNTO CLAVE: la lista viene en 'response'
+            pagina = data.get("response") or []
+            if not pagina:
                 break
 
-            for item in items:
+            for item in pagina:
                 try:
-                    nombre = item.get("description") or "N/A"
-                    precio_actual = _safe_float(item.get("currentPrice"), 0)
-                    precio_anterior = _safe_float(item.get("lastPrice"), 0)
-                    moneda = "ARS"
-                    url = item.get("destinyUrl") or "#"
-                    imagen = item.get("defaultImgUrl") or ""
-                    reseller = item.get("resellerDescription") or "PreciosGamer"
+                    tienda_raw = item.get("resellerDescription", "") or ""
+                    if _normalize(tienda_raw) not in tiendas_norm:
+                        continue  # descartamos tiendas no autorizadas
+
+                    # Campos con conversión segura
+                    precio_actual = float(item.get("currentPrice", 0) or 0)
+                    precio_anterior = float(item.get("lastPrice", 0) or 0)
+                    porcentaje_desc = float(item.get("percentage", 0) or 0)
 
                     resultados.append({
-                        "busqueda": term.lower(),
-                        "sitio": reseller,  # el reseller/tienda dentro de PreciosGamer
-                        "nombre": nombre,
-                        "precio_numeric": precio_actual,
-                        "precio_raw": str(item.get("currentPrice")),
-                        "moneda": moneda,
-                        "url": url,
-                        "imagen": imagen,
-                        "actualizado_en": _fmt_iso_now_ba(),
-                        "es_tgs": False
+                        "busqueda": producto.lower(),
+                        "sitio": tienda_raw,
+                        "producto": (item.get("description") or "").strip(),
+                        "precio": precio_actual,
+                        "link": item.get("destinyUrl") or "#",
+                        "imagen": item.get("defaultImgUrl") or "",
+                        "marca": (item.get("brandDescription") or "").strip() or "Sin Marca",
+                        "precio_anterior": precio_anterior,
+                        "porcentaje_descuento": porcentaje_desc,
                     })
-                except Exception as e:
-                    logging.warning(f"--- ADVERTENCIA: ítem inválido en PreciosGamer: {e}")
+                except (TypeError, ValueError) as e:
+                    # Si un ítem viene mal, lo saltamos (tu mejora original)
+                    print(f"   - Ítem inválido omitido: {e}")
                     continue
 
-            logging.info(f"-> Página {math.floor(offset / PAGE_SIZE) + 1} OK. Total acumulado: {len(resultados)}")
-
-            # si vino menos que PAGE_SIZE, ya no hay más
-            if len(items) < PAGE_SIZE:
+            print(f"   Página {offset//LIMIT + 1}: acumulados {len(resultados)}")
+            if len(pagina) < LIMIT:
                 break
+            offset += LIMIT
+            time.sleep(0.3)
 
-            offset += PAGE_SIZE
-            time.sleep(0.4)  # leve throttle
         except requests.exceptions.RequestException as e:
-            logging.error(f"-> ERROR HTTP PreciosGamer: {e}")
+            print(f"[PG] ERROR de red: {e}")
             break
         except Exception as e:
-            logging.error(f"-> ERROR procesando PreciosGamer: {e}")
+            print(f"[PG] ERROR procesando página: {e}")
             break
 
-    logging.info(f"-> PreciosGamer finalizado. Total {len(resultados)} productos.")
+    print(f"-> PreciosGamer OK: {len(resultados)} productos filtrados.")
     return resultados
+
+
+# ---- Bloque de prueba directa ----
+if __name__ == "__main__":
+    import sys
+    term = sys.argv[1] if len(sys.argv) > 1 else "5600g"
+    items = buscar_en_preciosgamer(term)
+    print(f"TOTAL: {len(items)}")
+    if items:
+        from pprint import pprint
+        pprint(items[0])
