@@ -1,21 +1,20 @@
 # -*- coding: utf-8 -*-
 # services/air_scraper.py
-# Scraper de AIR sin Playwright: HTTP + BeautifulSoup + JSON-LD.
-# Recolecta "lista completa" descubriendo URLs desde sitemap o listados.
-# Compatible con Render (sin binarios de navegador).
+# Scraper AIR sin Playwright, con resolución de BASE_URL vía ENV o config interna.
 
 from __future__ import annotations
-import os
 import re
 import json
 import time
 import logging
 from typing import List, Dict, Optional
 from datetime import datetime
-from urllib.parse import urljoin, quote
+from urllib.parse import urljoin
 
 import requests
 from bs4 import BeautifulSoup
+
+from services.config_mayoristas import obtener_base_url
 
 try:
     from zoneinfo import ZoneInfo
@@ -32,7 +31,6 @@ HEADERS = {
 }
 
 PRICE_RE = re.compile(r"([\$S]?\s*\d{1,3}(?:\.\d{3})*(?:,\d{2})?)")
-NUM_RE = re.compile(r"(\d+(?:[.,]\d{2})?)")
 
 def _ts_ba_iso() -> str:
     try:
@@ -44,8 +42,7 @@ def _ts_ba_iso() -> str:
 def _to_float_ars(txt: str) -> float:
     if not txt:
         return 0.0
-    # "12.345,67" -> 12345.67
-    s = txt.strip()
+    s = str(txt).strip()
     m = PRICE_RE.search(s)
     if m:
         s = m.group(1)
@@ -63,19 +60,17 @@ def _abs(base: str, href: Optional[str]) -> str:
 def _get(url: str, timeout: int = 30) -> Optional[requests.Response]:
     try:
         r = requests.get(url, headers=HEADERS, timeout=timeout)
-        if r.status_code == 200:
+        if r.status_code == 200 and r.text:
             return r
     except requests.RequestException as e:
-        logging.warning(f"[AIR] GET fallo {url}: {e}")
+        logging.warning(f"[AIR] GET falló {url}: {e}")
     return None
 
 def _parse_jsonld_product(soup: BeautifulSoup) -> Dict[str, str]:
-    # Busca scripts con Product y extrae lo esencial
     for tag in soup.find_all("script", type="application/ld+json"):
         try:
             data = json.loads(tag.string or "{}")
             if isinstance(data, list):
-                # algunos sitios ponen lista
                 for entry in data:
                     res = _from_ld_entry(entry)
                     if res:
@@ -99,7 +94,6 @@ def _from_ld_entry(entry: dict) -> Optional[Dict[str, str]]:
         return None
     name = entry.get("name") or ""
     image = entry.get("image") or ""
-    # offers puede ser dict o lista
     price = ""
     currency = "ARS"
     offers = entry.get("offers")
@@ -113,16 +107,12 @@ def _from_ld_entry(entry: dict) -> Optional[Dict[str, str]]:
     return {"name": name, "image": image, "price": str(price), "currency": currency}
 
 def _parse_price_fallback(soup: BeautifulSoup) -> str:
-    # Busca precios en elementos comunes
-    candidates = [
-        ".price .amount", ".price .money", "span.money", "span.price", ".product-price",
-        "[data-price]", "[class*='price']"
-    ]
+    candidates = [".price .amount", ".price .money", "span.money", "span.price",
+                  ".product-price", "[data-price]", "[class*='price']"]
     for sel in candidates:
         el = soup.select_one(sel)
         if el and el.get_text(strip=True):
             return el.get_text(strip=True)
-    # prueba texto suelto
     txt = soup.get_text(" ", strip=True)
     m = PRICE_RE.search(txt)
     return m.group(1) if m else ""
@@ -135,11 +125,9 @@ def _parse_name_fallback(soup: BeautifulSoup) -> str:
     return ""
 
 def _parse_image_fallback(soup: BeautifulSoup) -> str:
-    # Intenta og:image
     og = soup.select_one("meta[property='og:image']")
     if og and og.get("content"):
         return og.get("content")
-    # o la primera imagen "grande"
     img = soup.select_one("img[src*='product'], img[src*='large'], img[src]")
     if img and img.get("src"):
         return img.get("src")
@@ -147,7 +135,8 @@ def _parse_image_fallback(soup: BeautifulSoup) -> str:
 
 def _discover_product_urls(base: str) -> List[str]:
     urls: List[str] = []
-    # 1) sitemap principal
+
+    # 1) Sitemaps
     for path in ["/sitemap.xml", "/sitemap_index.xml", "/sitemap-products.xml", "/sitemap_products_1.xml"]:
         r = _get(urljoin(base, path))
         if not r:
@@ -157,24 +146,20 @@ def _discover_product_urls(base: str) -> List[str]:
             u = (loc.get_text() or "").strip()
             if not u:
                 continue
-            if any(k in u.lower() for k in ["product", "producto", "item", "catalog", "producto"]):
+            if any(k in u.lower() for k in ["product", "producto", "item", "catalog"]):
                 urls.append(u)
         if urls:
-            return list(dict.fromkeys(urls))  # único y temprano
-    # 2) fallback: páginas de listados “conocidas”
-    listados = [
-        "/collections/all",
-        "/productos",
-        "/catalogsearch/result/?q=a",   # letra “a” para forzar listado
-        "/search?q=a",
-    ]
+            # Devolvemos temprano si encontramos un sitemap de productos
+            return list(dict.fromkeys(urls))
+
+    # 2) Fallback: listados comunes
+    listados = ["/collections/all", "/productos", "/catalogsearch/result/?q=a", "/search?q=a"]
     seen = set()
     for path in listados:
         r = _get(urljoin(base, path))
         if not r:
             continue
         soup = BeautifulSoup(r.text, "lxml")
-        # vínculos a productos
         for a in soup.select("a[href]"):
             href = a.get("href")
             if not href:
@@ -182,12 +167,10 @@ def _discover_product_urls(base: str) -> List[str]:
             u = _abs(base, href)
             if u in seen:
                 continue
-            # heurística simple de URL de producto
             if any(k in u.lower() for k in ["product", "producto", "item", "catalog"]):
                 urls.append(u)
                 seen.add(u)
-        # no saturar
-        time.sleep(0.2)
+        time.sleep(0.15)
     return list(dict.fromkeys(urls))
 
 def _parse_product_page(base: str, url: str) -> Optional[Dict]:
@@ -204,11 +187,10 @@ def _parse_product_page(base: str, url: str) -> Optional[Dict]:
 
     price = _to_float_ars(str(price_raw))
     if not name or price <= 0:
-        # descarta páginas sin precio claro
         return None
 
     return {
-        "busqueda": "",  # en “lista completa” no hay query; tu capa superior lo ignora
+        "busqueda": "",
         "sitio": "AIR",
         "sku": None,
         "nombre": name,
@@ -218,15 +200,15 @@ def _parse_product_page(base: str, url: str) -> Optional[Dict]:
         "url": url,
         "imagen": image,
         "actualizado_en": _ts_ba_iso(),
-        "es_tgs": False
+        "es_tgs": False,
     }
 
 def obtener_lista_completa_air() -> List[Dict]:
-    base = os.getenv("AIR_BASE_URL", "").strip()
+    base = obtener_base_url("AIR")
     if not base:
-        raise ValueError("Definí la variable de entorno AIR_BASE_URL con la URL base del mayorista AIR (ej: https://air-mayorista.com).")
-    if not base.startswith("http"):
-        base = "https://" + base
+        logging.error("AIR_BASE_URL no está definida (ni en ENV ni en config_mayoristas).")
+        # Retorno vacío para que la auditoría lo registre como error no fatal
+        return []
 
     logging.info("-> Obteniendo lista completa de AIR (HTTP sin Playwright)...")
     urls = _discover_product_urls(base)
@@ -238,14 +220,13 @@ def obtener_lista_completa_air() -> List[Dict]:
             out.append(data)
         if i % 50 == 0:
             logging.info(f"   Progreso AIR: {i}/{len(urls)}")
-        time.sleep(0.15)  # throttle sutil para no agredir
+        time.sleep(0.1)
     logging.info(f"-> AIR finalizado. Productos válidos: {len(out)}")
     return out
 
-# Opcional: búsqueda ad-hoc filtrando por nombre una vez recolectada la lista
 def buscar_en_air(termino: str) -> List[Dict]:
     termino = (termino or "").strip().lower()
     if not termino:
         return []
     full = obtener_lista_completa_air()
-    return [p for p in full if termino in (p.get("nombre","").lower())]
+    return [p for p in full if termino in (p.get("nombre", "").lower())]

@@ -1,19 +1,20 @@
 # -*- coding: utf-8 -*-
 # services/polytech_scraper.py
-# Scraper de POLYTECH sin Playwright: HTTP + BeautifulSoup + JSON-LD.
+# Scraper POLYTECH sin Playwright, con resolución de BASE_URL vía ENV o config interna.
 
 from __future__ import annotations
-import os
 import re
 import json
 import time
 import logging
 from typing import List, Dict, Optional
 from datetime import datetime
-from urllib.parse import urljoin, quote
+from urllib.parse import urljoin
 
 import requests
 from bs4 import BeautifulSoup
+
+from services.config_mayoristas import obtener_base_url
 
 try:
     from zoneinfo import ZoneInfo
@@ -41,7 +42,7 @@ def _ts_ba_iso() -> str:
 def _to_float_ars(txt: str) -> float:
     if not txt:
         return 0.0
-    s = txt.strip()
+    s = str(txt).strip()
     m = PRICE_RE.search(s)
     if m:
         s = m.group(1)
@@ -59,10 +60,10 @@ def _abs(base: str, href: Optional[str]) -> str:
 def _get(url: str, timeout: int = 30) -> Optional[requests.Response]:
     try:
         r = requests.get(url, headers=HEADERS, timeout=timeout)
-        if r.status_code == 200:
+        if r.status_code == 200 and r.text:
             return r
     except requests.RequestException as e:
-        logging.warning(f"[POLYTECH] GET fallo {url}: {e}")
+        logging.warning(f"[POLYTECH] GET falló {url}: {e}")
     return None
 
 def _parse_jsonld_product(soup: BeautifulSoup) -> Dict[str, str]:
@@ -106,8 +107,8 @@ def _from_ld_entry(entry: dict) -> Optional[Dict[str, str]]:
     return {"name": name, "image": image, "price": str(price), "currency": currency}
 
 def _parse_price_fallback(soup: BeautifulSoup) -> str:
-    candidates = [".price .amount", ".price .money", "span.money", "span.price", ".product-price",
-                  "[data-price]", "[class*='price']"]
+    candidates = [".price .amount", ".price .money", "span.money", "span.price",
+                  ".product-price", "[data-price]", "[class*='price']"]
     for sel in candidates:
         el = soup.select_one(sel)
         if el and el.get_text(strip=True):
@@ -134,7 +135,8 @@ def _parse_image_fallback(soup: BeautifulSoup) -> str:
 
 def _discover_product_urls(base: str) -> List[str]:
     urls: List[str] = []
-    # 1) sitemaps
+
+    # 1) Sitemaps
     for path in ["/sitemap.xml", "/sitemap_index.xml", "/sitemap-products.xml", "/sitemap_products_1.xml"]:
         r = _get(urljoin(base, path))
         if not r:
@@ -148,13 +150,9 @@ def _discover_product_urls(base: str) -> List[str]:
                 urls.append(u)
         if urls:
             return list(dict.fromkeys(urls))
-    # 2) listados fallback
-    listados = [
-        "/collections/all",
-        "/productos",
-        "/catalogsearch/result/?q=a",
-        "/search?q=a",
-    ]
+
+    # 2) Fallback: listados comunes
+    listados = ["/collections/all", "/productos", "/catalogsearch/result/?q=a", "/search?q=a"]
     seen = set()
     for path in listados:
         r = _get(urljoin(base, path))
@@ -171,7 +169,7 @@ def _discover_product_urls(base: str) -> List[str]:
             if any(k in u.lower() for k in ["product", "producto", "item", "catalog"]):
                 urls.append(u)
                 seen.add(u)
-        time.sleep(0.2)
+        time.sleep(0.15)
     return list(dict.fromkeys(urls))
 
 def _parse_product_page(base: str, url: str) -> Optional[Dict]:
@@ -201,15 +199,14 @@ def _parse_product_page(base: str, url: str) -> Optional[Dict]:
         "url": url,
         "imagen": image,
         "actualizado_en": _ts_ba_iso(),
-        "es_tgs": False
+        "es_tgs": False,
     }
 
 def obtener_lista_completa_polytech() -> List[Dict]:
-    base = os.getenv("POLYTECH_BASE_URL", "").strip()
+    base = obtener_base_url("POLYTECH")
     if not base:
-        raise ValueError("Definí la variable POLYTECH_BASE_URL con la URL base del mayorista POLYTECH (ej: https://polytech.com.ar).")
-    if not base.startswith("http"):
-        base = "https://" + base
+        logging.error("POLYTECH_BASE_URL no está definida (ni en ENV ni en config_mayoristas).")
+        return []
 
     logging.info("-> Obteniendo lista completa de POLYTECH (HTTP sin Playwright)...")
     urls = _discover_product_urls(base)
@@ -221,7 +218,7 @@ def obtener_lista_completa_polytech() -> List[Dict]:
             out.append(data)
         if i % 50 == 0:
             logging.info(f"   Progreso POLYTECH: {i}/{len(urls)}")
-        time.sleep(0.15)
+        time.sleep(0.1)
     logging.info(f"-> POLYTECH finalizado. Productos válidos: {len(out)}")
     return out
 
@@ -230,4 +227,4 @@ def buscar_en_polytech(termino: str) -> List[Dict]:
     if not termino:
         return []
     full = obtener_lista_completa_polytech()
-    return [p for p in full if termino in (p.get("nombre","").lower())]
+    return [p for p in full if termino in (p.get("nombre", "").lower())]
