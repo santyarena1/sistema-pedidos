@@ -1,15 +1,12 @@
 # routes/componentes_routes.py
 
 from flask import Blueprint, request, jsonify, render_template
-from config import DB_CONFIG
-import psycopg2
+# Se quita la importación de DB_CONFIG y psycopg2
 import psycopg2.extras
+# Nos aseguramos que esta línea esté, para usar la conexión central
+from db.connection import get_db_connection
 
 componentes_bp = Blueprint("componentes", __name__)
-
-def get_db_connection():
-    """Establece la conexión con la base de datos."""
-    return psycopg2.connect(**DB_CONFIG)
 
 @componentes_bp.route("/componentes-presupuesto")
 def vista_componentes():
