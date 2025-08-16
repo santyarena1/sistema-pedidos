@@ -1,7 +1,7 @@
 # routes/pc_predeterminadas_routes.py
 
 from flask import Blueprint, jsonify, request, render_template, send_file
-from config import DB_CONFIG
+from db.connection import get_db_connection
 import psycopg2
 import psycopg2.extras
 from datetime import date
@@ -10,9 +10,7 @@ from weasyprint import HTML
 
 pc_pred_bp = Blueprint("pcs_predeterminadas", __name__)
 
-def get_connection():
-    """Establece la conexión con la base de datos."""
-    return psycopg2.connect(**DB_CONFIG)
+
 
 def actualizar_fecha_mod(cur, pc_id):
     """Función ayudante para actualizar la fecha de modificación de una PC."""
